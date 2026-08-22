@@ -1,0 +1,87 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <receiver
+      android:name=".TopTodoWidgetProvider"
+      android:exported="true"
+      android:label="@string/weship_todo_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/weship_todo_widget_info" />
+    </receiver>
+
+    <receiver
+      android:name=".PartnerCarouselProvider"
+      android:exported="true"
+      android:label="@string/weship_partner_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/weship_partner_carousel_info" />
+    </receiver>
+
+    <receiver
+      android:name=".FriendsCarouselProvider"
+      android:exported="true"
+      android:label="@string/weship_friends_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/weship_friends_carousel_info" />
+    </receiver>
+
+    <receiver
+      android:name=".PresenceWidgetProvider"
+      android:exported="true"
+      android:label="@string/weship_presence_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/weship_presence_info" />
+    </receiver>
+
+    <receiver
+      android:name=".StreakQuestionProvider"
+      android:exported="true"
+      android:label="@string/weship_streak_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/weship_streak_info" />
+    </receiver>
+
+    <receiver
+      android:name=".NudgeWidgetProvider"
+      android:exported="true"
+      android:label="@string/weship_nudge_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/weship_nudge_info" />
+    </receiver>
+
+    <!-- Widget button taps. Not exported: only this app may trigger them. -->
+    <receiver
+      android:name=".WidgetActionReceiver"
+      android:exported="false" />
+
+    <!-- Feeds the swipeable StackView carousels. The permission is required by
+         the platform so only the launcher may bind to it. -->
+    <service
+      android:name=".CarouselRemoteViewsService"
+      android:exported="false"
+      android:permission="android.permission.BIND_REMOTEVIEWS" />
+  </application>
+</manifest>

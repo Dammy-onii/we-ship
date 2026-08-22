@@ -1,0 +1,39 @@
+<resources>
+  <string name="weship_todo_widget_name">Weship 2do</string>
+  <string name="weship_todo_widget_description">Your next incomplete shared 2do. Tap the circle to tick it off.</string>
+  <string name="weship_todo_widget_label">WESHIP 2DO</string>
+  <string name="weship_todo_widget_empty">All caught up</string>
+  <string name="weship_todo_widget_open">OPEN WESHIP</string>
+  <string name="weship_todo_widget_status">2do status</string>
+
+  <string name="weship_partner_widget_name">Weship Us</string>
+  <string name="weship_partner_widget_description">Photos, videos and notes you have shared. Swipe to browse.</string>
+  <string name="weship_friends_widget_name">Weship Friends</string>
+  <string name="weship_friends_widget_description">What your friends have posted. Swipe to browse.</string>
+  <string name="weship_carousel_empty">Nothing shared yet</string>
+  <string name="weship_carousel_image">Shared image</string>
+  <string name="weship_carousel_video">Video</string>
+
+  <string name="weship_presence_widget_name">Weship Presence</string>
+  <string name="weship_presence_widget_description">Your partner\'s mood and their time.</string>
+  <string name="weship_presence_empty">Pair to see your person</string>
+
+  <string name="weship_streak_widget_name">Weship Streak</string>
+  <string name="weship_streak_widget_description">Your streak and today\'s question.</string>
+  <string name="weship_streak_no_question">No question yet today</string>
+  <string name="weship_streak_both">BOTH ANSWERED</string>
+  <string name="weship_streak_waiting">WAITING ON THEM</string>
+  <string name="weship_streak_your_turn">YOUR TURN</string>
+
+  <string name="weship_nudge_widget_name">Weship Nudge</string>
+  <string name="weship_nudge_widget_description">Send a heart without opening the app.</string>
+  <string name="weship_nudge_prompt">Send them something</string>
+  <string name="weship_nudge_sent">Sent ✓</string>
+  <string name="weship_nudge_heart">❤️</string>
+  <string name="weship_nudge_thinking">\U0001F4AD</string>
+
+  <plurals name="weship_streak_days">
+    <item quantity="one">%d day streak</item>
+    <item quantity="other">%d day streak</item>
+  </plurals>
+</resources>

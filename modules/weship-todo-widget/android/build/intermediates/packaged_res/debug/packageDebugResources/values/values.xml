@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="weship_widget_background">#F3F1EC</color>
+    <color name="weship_widget_secondary">#706C67</color>
+    <color name="weship_widget_text">#252321</color>
+    <string name="weship_todo_widget_description">Your next incomplete shared 2do.</string>
+    <string name="weship_todo_widget_empty">All caught up</string>
+    <string name="weship_todo_widget_label">WESHIP 2DO</string>
+    <string name="weship_todo_widget_name">Weship 2do</string>
+    <string name="weship_todo_widget_open">OPEN WESHIP</string>
+    <string name="weship_todo_widget_status">2do status</string>
+</resources>

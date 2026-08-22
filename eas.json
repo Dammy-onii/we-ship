@@ -1,0 +1,44 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bccrjivgkkdarolwfrct.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_SooIONmarTJFrBSinQ1vqg_i9DHtx2w",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "2002b1cd-7490-4b13-89b6-8979b531f093"
+      },
+      "autoIncrement": true
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bccrjivgkkdarolwfrct.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_SooIONmarTJFrBSinQ1vqg_i9DHtx2w",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "2002b1cd-7490-4b13-89b6-8979b531f093"
+      },
+      "autoIncrement": true
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bccrjivgkkdarolwfrct.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_SooIONmarTJFrBSinQ1vqg_i9DHtx2w",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "2002b1cd-7490-4b13-89b6-8979b531f093"
+      }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/weship_nudge_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:gravity="center"
+  android:padding="12dp"
+  android:background="@drawable/weship_widget_background">
+
+  <TextView
+    android:id="@+id/weship_nudge_status"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center"
+    android:maxLines="2"
+    android:textSize="12sp"
+    android:textColor="@color/weship_widget_secondary" />
+
+  <LinearLayout
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:orientation="horizontal">
+
+    <TextView
+      android:id="@+id/weship_nudge_heart"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:paddingStart="16dp"
+      android:paddingEnd="16dp"
+      android:paddingTop="10dp"
+      android:paddingBottom="10dp"
+      android:text="@string/weship_nudge_heart"
+      android:textSize="20sp"
+      android:background="@drawable/weship_widget_button" />
+
+    <TextView
+      android:id="@+id/weship_nudge_thinking"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="10dp"
+      android:paddingStart="16dp"
+      android:paddingEnd="16dp"
+      android:paddingTop="10dp"
+      android:paddingBottom="10dp"
+      android:text="@string/weship_nudge_thinking"
+      android:textSize="20sp"
+      android:background="@drawable/weship_widget_button" />
+  </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,10 @@
+project_id = "we-ship"
+
+[functions.google-oauth-callback]
+verify_jwt = false
+
+[functions.dispatch-push]
+verify_jwt = false
+
+[functions.dispatch-reminders]
+verify_jwt = false

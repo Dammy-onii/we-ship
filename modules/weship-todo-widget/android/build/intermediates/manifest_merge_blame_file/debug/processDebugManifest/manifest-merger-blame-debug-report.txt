@@ -1,0 +1,33 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="app.weship.todowidget" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+6
+7    <application>
+7-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:2:3-14:17
+8        <receiver
+8-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:3:5-13:16
+9            android:name="app.weship.todowidget.TopTodoWidgetProvider"
+9-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:4:7-44
+10            android:exported="true"
+10-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:5:7-30
+11            android:label="@string/weship_todo_widget_name" >
+11-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:6:7-54
+12            <intent-filter>
+12-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:7:7-9:23
+13                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+13-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:9-76
+13-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:17-73
+14            </intent-filter>
+15
+16            <meta-data
+16-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:10:7-12:59
+17                android:name="android.appwidget.provider"
+17-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:11:9-50
+18                android:resource="@xml/weship_todo_widget_info" />
+18-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:12:9-56
+19        </receiver>
+20    </application>
+21
+22</manifest>

@@ -1,0 +1,20 @@
+R_DEF: Internal format may change without notice
+local
+color weship_widget_background
+color weship_widget_secondary
+color weship_widget_text
+drawable weship_widget_background
+drawable weship_widget_checked
+drawable weship_widget_open_circle
+id weship_widget_root
+id weship_widget_routine
+id weship_widget_status
+id weship_widget_task
+layout weship_todo_widget
+string weship_todo_widget_description
+string weship_todo_widget_empty
+string weship_todo_widget_label
+string weship_todo_widget_name
+string weship_todo_widget_open
+string weship_todo_widget_status
+xml weship_todo_widget_info

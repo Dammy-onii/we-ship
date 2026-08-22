@@ -1,0 +1,345 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+
+import { Text } from '@/components/ui/text';
+import { Radius, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { ensureCachedMedia } from '@/lib/media-cache';
+import { cacheScopeFor, type SpotlightItem } from '@/lib/spotlight-item';
+
+/**
+ * The fluid two-column masonry shared by the partner Spotlight and the friend
+ * Spotlight. Each kind gets a visually distinct card, and each declares its own
+ * height — that is what makes the grid stagger rather than sit on a rigid grid.
+ */
+export function SpotlightSection({
+  title,
+  count,
+  items,
+  onOpen,
+}: {
+  title: string;
+  count: number;
+  items: SpotlightItem[];
+  onOpen: (item: SpotlightItem) => void;
+}) {
+  const theme = useTheme();
+  const { width } = useWindowDimensions();
+  const columnWidth = (width - Spacing.lg * 2 - Spacing.sm) / 2;
+  const columns = useMemo(() => toColumns(items, 2, columnWidth), [items, columnWidth]);
+
+  return (
+    <View style={{ gap: Spacing.md }}>
+      <View style={styles.sectionHead}>
+        <Text variant="micro" color="textFaint">
+          {title.toUpperCase()}
+        </Text>
+        <View style={[styles.count, { backgroundColor: theme.surfaceAlt }]}>
+          <Text variant="micro" color="textSoft">
+            {count}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.masonry}>
+        {columns.map((column, columnIndex) => (
+          <View key={columnIndex} style={{ width: columnWidth, gap: Spacing.sm }}>
+            {column.items.map((item, i) => (
+              <Animated.View
+                key={item.id}
+                entering={FadeInDown.duration(260).delay(Math.min(i, 6) * 40)}>
+                <SpotlightCard
+                  item={item}
+                  width={columnWidth}
+                  height={cardHeight(item, columnWidth)}
+                  onPress={() => onOpen(item)}
+                />
+              </Animated.View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Distributes items into balanced columns.
+ *
+ * Each card declares its own height, so a naive row layout would leave ragged
+ * gaps. Placing every next card in the currently shortest column keeps the
+ * columns even without measuring rendered views.
+ */
+function toColumns(items: SpotlightItem[], columnCount: number, width: number) {
+  const columns: { items: SpotlightItem[]; height: number }[] = Array.from(
+    { length: columnCount },
+    () => ({ items: [], height: 0 }),
+  );
+  for (const item of items) {
+    const shortest = columns.reduce((min, c) => (c.height < min.height ? c : min), columns[0]);
+    shortest.items.push(item);
+    shortest.height += cardHeight(item, width);
+  }
+  return columns;
+}
+
+/** Intrinsic media ratio, clamped so a panorama or very tall image stays usable. */
+function cardHeight(item: SpotlightItem, width: number) {
+  switch (item.kind) {
+    case 'photo':
+    case 'video':
+      if (item.width && item.height) {
+        return width * Math.max(0.72, Math.min(1.45, item.height / item.width));
+      }
+      return width;
+    case 'voice':
+      return 132;
+    case 'reminder':
+      return 148;
+    default: {
+      const length = item.text?.length ?? 0;
+      return Math.min(300, 116 + Math.round(length / 3.1));
+    }
+  }
+}
+
+function SpotlightCard({
+  item,
+  width,
+  height,
+  onPress,
+}: {
+  item: SpotlightItem;
+  width: number;
+  height: number;
+  onPress: () => void;
+}) {
+  const shared = { width, height, onPress };
+  if (item.kind === 'photo' || item.kind === 'video') return <MediaCard item={item} {...shared} />;
+  if (item.kind === 'voice') return <VoiceCard item={item} {...shared} />;
+  if (item.kind === 'reminder') return <ReminderCard item={item} {...shared} />;
+  return <NoteCard item={item} {...shared} />;
+}
+
+type CardProps = {
+  item: SpotlightItem;
+  width: number;
+  height: number;
+  onPress: () => void;
+};
+
+function byline(item: SpotlightItem) {
+  return item.mine ? 'YOU' : item.authorName.toUpperCase();
+}
+
+function CardShell({
+  children,
+  height,
+  onPress,
+  label,
+  style,
+}: {
+  children: React.ReactNode;
+  height: number;
+  onPress: () => void;
+  label: string;
+  style?: object;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [pressed && { opacity: 0.84, transform: [{ scale: 0.99 }] }]}>
+      <View style={[styles.card, { height }, style]}>{children}</View>
+    </Pressable>
+  );
+}
+
+/** Photo/video: image fills the card, byline sits over a scrim. */
+function MediaCard({ item, height, onPress }: CardProps) {
+  const theme = useTheme();
+  const scope = cacheScopeFor(item);
+  const [uri, setUri] = useState<string | undefined>(item.uri);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!item.uri) return;
+    // Saves on first view; friend media then serves from disk until it expires.
+    ensureCachedMedia(item.id, item.kind, item.uri, scope).then((next) => {
+      if (!cancelled) setUri(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, item.kind, item.uri, scope]);
+
+  return (
+    <CardShell
+      height={height}
+      onPress={onPress}
+      label={`${item.kind} from ${item.mine ? 'you' : item.authorName}`}
+      style={{ backgroundColor: theme.surfaceAlt }}>
+      {uri ? (
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+      ) : (
+        <View style={styles.cardFallback}>
+          <Ionicons name="image-outline" size={24} color={theme.textFaint} />
+        </View>
+      )}
+      {item.kind === 'video' ? (
+        <View style={styles.playBadge}>
+          <Ionicons name="play" size={14} color="#1E1D19" />
+        </View>
+      ) : null}
+      <View style={styles.mediaByline}>
+        <View style={[styles.kindDot, { backgroundColor: item.mine ? theme.primary : theme.partner }]} />
+        <Text variant="micro" style={{ color: '#FFFCF7' }} numberOfLines={1}>
+          {byline(item)}
+        </Text>
+      </View>
+    </CardShell>
+  );
+}
+
+/** Voice: a waveform-styled card, visually unlike the others. */
+function VoiceCard({ item, height, onPress }: CardProps) {
+  const theme = useTheme();
+  const accent = item.mine ? theme.primary : theme.partner;
+  // Deterministic bars from the id so a note looks the same on every render.
+  const bars = Array.from({ length: 22 }, (_, i) => {
+    const seed = item.id.charCodeAt(i % item.id.length) + i * 7;
+    return 8 + (seed % 22);
+  });
+
+  return (
+    <CardShell
+      height={height}
+      onPress={onPress}
+      label={`Voice note from ${item.mine ? 'you' : item.authorName}`}
+      style={{
+        backgroundColor: item.mine ? theme.primarySoft : theme.partnerSoft,
+        padding: Spacing.base,
+        justifyContent: 'space-between',
+      }}>
+      <View style={styles.cardHead}>
+        <View style={[styles.iconPill, { backgroundColor: accent }]}>
+          <Ionicons name="mic" size={13} color={theme.onPrimary} />
+        </View>
+        <Text variant="micro" color="textFaint">
+          {item.durationSeconds ? `${item.durationSeconds}s` : 'VOICE'}
+        </Text>
+      </View>
+      <View style={styles.waveform}>
+        {bars.map((barHeight, i) => (
+          <View
+            key={i}
+            style={[styles.bar, { height: barHeight, backgroundColor: accent, opacity: 0.35 + (i % 4) * 0.16 }]}
+          />
+        ))}
+      </View>
+      <Text variant="micro" color="textFaint" numberOfLines={1}>
+        {byline(item)}
+      </Text>
+    </CardShell>
+  );
+}
+
+/** Note: type-led card that grows with its content. */
+function NoteCard({ item, height, onPress }: CardProps) {
+  const theme = useTheme();
+  return (
+    <CardShell
+      height={height}
+      onPress={onPress}
+      label={`Note from ${item.mine ? 'you' : item.authorName}`}
+      style={{
+        backgroundColor: theme.surface,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: theme.line,
+        padding: Spacing.base,
+        justifyContent: 'space-between',
+      }}>
+      <View style={[styles.quoteBar, { backgroundColor: item.mine ? theme.primary : theme.partner }]} />
+      <Text variant="serif" style={{ fontSize: 15, lineHeight: 23 }} numberOfLines={7}>
+        {item.text ?? '—'}
+      </Text>
+      <Text variant="micro" color="textFaint" numberOfLines={1}>
+        {byline(item)}
+      </Text>
+    </CardShell>
+  );
+}
+
+/** Reminder: deliberately the loudest card so it reads as an ask. */
+function ReminderCard({ item, height, onPress }: CardProps) {
+  const theme = useTheme();
+  return (
+    <CardShell
+      height={height}
+      onPress={onPress}
+      label={`Reminder from ${item.mine ? 'you' : item.authorName}`}
+      style={{
+        backgroundColor: theme.gold + '24',
+        borderWidth: 1,
+        borderColor: theme.gold + '55',
+        padding: Spacing.base,
+        justifyContent: 'space-between',
+      }}>
+      <View style={[styles.iconPill, { backgroundColor: theme.gold }]}>
+        <Ionicons name="alarm-outline" size={13} color="#1E1D19" />
+      </View>
+      <Text variant="bodyStrong" numberOfLines={4}>
+        {item.text ?? 'Reminder'}
+      </Text>
+      <Text variant="micro" color="textFaint" numberOfLines={1}>
+        {byline(item)}
+      </Text>
+    </CardShell>
+  );
+}
+
+const styles = StyleSheet.create({
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  count: {
+    minWidth: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+  },
+  masonry: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
+  card: { borderRadius: Radius.tile, overflow: 'hidden' },
+  cardFallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  iconPill: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  mediaByline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(18,17,16,0.42)',
+  },
+  playBadge: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(252,250,247,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waveform: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  bar: { width: 3, borderRadius: 2 },
+  quoteBar: { width: 26, height: 3, borderRadius: 2 },
+  kindDot: { width: 6, height: 6, borderRadius: 3 },
+});

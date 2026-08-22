@@ -1,0 +1,38 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:1:1-15:12
+INJECTED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:1:1-15:12
+	package
+		INJECTED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:1:11-69
+application
+ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:2:3-14:17
+receiver#app.weship.todowidget.TopTodoWidgetProvider
+ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:3:5-13:16
+	android:label
+		ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:6:7-54
+	android:exported
+		ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:5:7-30
+	android:name
+		ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:4:7-44
+intent-filter#action:name:android.appwidget.action.APPWIDGET_UPDATE
+ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:7:7-9:23
+action#android.appwidget.action.APPWIDGET_UPDATE
+ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:9-76
+	android:name
+		ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:17-73
+meta-data#android.appwidget.provider
+ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:10:7-12:59
+	android:resource
+		ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:12:9-56
+	android:name
+		ADDED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:11:9-50
+uses-sdk
+INJECTED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml
+INJECTED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml
