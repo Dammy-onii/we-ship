@@ -8,10 +8,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Flame, Sprig } from '@/components/art/botanicals';
 import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DataState } from '@/components/ui/data-state';
 import { Photo } from '@/components/ui/photo';
 import { HeroSlideshow } from '@/components/hero-slideshow';
+import { SetupChecklist } from '@/components/setup-checklist';
 import { MoodPicker } from '@/components/mood-picker';
 import { TaskCompletionDialog } from '@/components/task-completion-dialog';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -21,6 +23,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { moodOf, type MoodKey } from '@/lib/moods';
 import {
   PARTNER_ID,
+  useBackendStatus,
   useGoodies,
   useLog,
   useMe,
@@ -34,17 +37,12 @@ import {
 import { localTimeIn, partOfDayIn } from '@/lib/time';
 
 export default function HomeScreen() {
-  const { goodies } = useGoodies();
-  const hasMedia = goodies.some(
-    (goodie) => (goodie.kind === 'photo' || goodie.kind === 'video') && goodie.uri,
-  );
-
   return (
     <View style={{ flex: 1 }}>
       <PresenceHero />
       <Body />
       {/* Last, so its controls sit above the absolutely-filled body scroll. */}
-      <HeroBrand hasMedia={hasMedia} />
+      <HeroBrand />
     </View>
   );
 }
@@ -58,8 +56,7 @@ export default function HomeScreen() {
  * interactive parts of the hero back on top, while the rest of the hero stays
  * behind the scroll surface where it belongs.
  */
-function HeroBrand({ hasMedia }: { hasMedia: boolean }) {
-  const theme = useTheme();
+function HeroBrand() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const me = useMe();
@@ -102,19 +99,19 @@ function HeroBrand({ hasMedia }: { hasMedia: boolean }) {
           style={({ pressed }) => [
             styles.myMood,
             {
-              backgroundColor: hasMedia ? 'rgba(18,17,16,0.38)' : theme.surface,
-              borderColor: hasMedia ? 'transparent' : theme.line,
+              backgroundColor: 'rgba(18,17,16,0.38)',
+              borderColor: 'transparent',
             },
             pressed && { opacity: 0.75 },
           ]}>
           <View style={[styles.moodDot, { backgroundColor: myMood.color }]} />
-          <Text variant="micro" onPhoto={hasMedia}>
+          <Text variant="micro" onPhoto>
             {myMoodLabel.toUpperCase()}
           </Text>
           <Ionicons
             name="chevron-down"
             size={12}
-            color={hasMedia ? 'rgba(255,252,247,0.8)' : theme.textSoft}
+            color="rgba(255,252,247,0.8)"
           />
         </Pressable>
       </View>
@@ -155,15 +152,14 @@ function PresenceHero() {
   const me = useMe();
   const presence = usePresence(PARTNER_ID);
   const space = useSpace();
+  const sync = useBackendStatus();
   const { goodies } = useGoodies();
 
   const heroHeight = Math.min(height * 0.46, 420);
-  // The scrim exists to keep text legible over photography. With no shared
-  // media there is no photography — painting it anyway produced a heavy grey
-  // slab over the top half of Home and made the partner's name unreadable.
   const hasMedia = goodies.some(
     (goodie) => (goodie.kind === 'photo' || goodie.kind === 'video') && goodie.uri,
   );
+  const paired = sync.mode !== 'live' || sync.paired;
   const mood = moodOf(presence.mood);
   const moodLabel = presence.statusText?.trim() || mood.label;
   const part = partOfDayIn(partner.timezone);
@@ -183,7 +179,9 @@ function PresenceHero() {
       {/* Recent Goodies play behind the presence overlay. */}
       <HeroSlideshow goodies={goodies} height={heroHeight} />
       {/* Exactly one scrim. `Photo`'s own `scrim` prop paints the same gradient,
-          so passing both stacked two 0.66-alpha blacks to roughly 0.88. */}
+          so passing both stacked two 0.66-alpha blacks to roughly 0.88.
+          Only over real photography: the empty-state ground is already a deep
+          solid, and darkening that as well turned the hero into a black slab. */}
       {hasMedia ? (
         <LinearGradient
           colors={Gradients.photoScrim}
@@ -192,37 +190,55 @@ function PresenceHero() {
           pointerEvents="none"
         />
       ) : null}
-      {/* Kept even with no media: this is the dark backing the status bar's
-          light icons sit on, and the avatars/mood chip read against it. */}
+      {/* The dark backing the status bar's light icons sit on. */}
       <LinearGradient
         colors={Gradients.topScrim}
         style={styles.topScrim}
         pointerEvents="none"
       />
       <Animated.View entering={FadeIn.duration(500)} style={styles.heroBody}>
-        <View style={styles.heroMeta}>
-          <View style={[styles.moodDot, { backgroundColor: mood.color }]} />
-          <Text variant="micro" onPhoto={hasMedia} style={{ opacity: 0.9 }}>
-            {moodLabel.toUpperCase()} · {part.toUpperCase()}
-          </Text>
-        </View>
-        <Text variant="hero" onPhoto={hasMedia} style={{ marginTop: 6 }}>
-          {partner.displayName}
-        </Text>
-        <View style={styles.heroFacts}>
-          {sameZone ? (
-            <Fact icon="pulse-outline" label={lastSeen(presence.updatedAt)} onPhoto={hasMedia} />
-          ) : (
-            <Fact icon="time-outline" label={city ? `${time} · ${city}` : time} onPhoto={hasMedia} />
-          )}
-          {space.mode === 'distance' && presence.weather && (
-            <Fact
-              icon="rainy-outline"
-              label={`${presence.weather.tempC}° ${presence.weather.label}`}
-              onPhoto={hasMedia}
-            />
-          )}
-        </View>
+        {/* Unpaired, every one of these is invented: a placeholder name, a mood
+            nobody set, and "Active just now" for an account that does not
+            exist. Say there is nobody here instead. */}
+        {paired ? (
+          <>
+            <View style={styles.heroMeta}>
+              <View style={[styles.moodDot, { backgroundColor: mood.color }]} />
+              <Text variant="micro" onPhoto style={{ opacity: 0.9 }}>
+                {moodLabel.toUpperCase()} · {part.toUpperCase()}
+              </Text>
+            </View>
+            <Text variant="hero" onPhoto style={{ marginTop: 6 }}>
+              {partner.displayName}
+            </Text>
+            <View style={styles.heroFacts}>
+              {sameZone ? (
+                <Fact icon="pulse-outline" label={lastSeen(presence.updatedAt)} onPhoto />
+              ) : (
+                <Fact icon="time-outline" label={city ? `${time} · ${city}` : time} onPhoto />
+              )}
+              {space.mode === 'distance' && presence.weather && (
+                <Fact
+                  icon="rainy-outline"
+                  label={`${presence.weather.tempC}° ${presence.weather.label}`}
+                  onPhoto
+                />
+              )}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text variant="micro" onPhoto style={{ opacity: 0.9 }}>
+              NOT PAIRED YET
+            </Text>
+            <Text variant="hero" onPhoto style={{ marginTop: 6 }}>
+              Your space
+            </Text>
+            <View style={styles.heroFacts}>
+              <Fact icon="heart-outline" label="Pair to see their mood and their time" onPhoto />
+            </View>
+          </>
+        )}
       </Animated.View>
 
     </Photo>
@@ -262,14 +278,51 @@ function Fact({
 /** The scrolling sheet that rides up over the hero. */
 function ContentSheet() {
   const theme = useTheme();
+  const sync = useBackendStatus();
+  // Streak, shared 2dos and the daily question are all two-person features:
+  // with nobody to share them with they render as zeroes and empty states,
+  // which reads as a broken app rather than an unfinished setup.
+  const paired = sync.mode !== 'live' || sync.paired;
+
   return (
     <View style={[styles.sheet, { backgroundColor: theme.bg }]}>
       <View style={[styles.grabber, { backgroundColor: theme.lineStrong }]} />
       <View style={styles.body}>
-        <SimpleStreak />
-        <TaskOverview />
-        <QuestionCard />
+        {paired ? null : <PairPrompt />}
+        <SetupChecklist />
+        {paired ? (
+          <>
+            <SimpleStreak />
+            <TaskOverview />
+            <QuestionCard />
+          </>
+        ) : null}
       </View>
+    </View>
+  );
+}
+
+/** What Home says while there is nobody to share it with. */
+function PairPrompt() {
+  const theme = useTheme();
+  const router = useRouter();
+
+  return (
+    <View style={[styles.pairPrompt, { backgroundColor: theme.primarySoft }]}>
+      <View style={styles.pairPromptHead}>
+        <Ionicons name="people-outline" size={20} color={theme.primaryDeep} />
+        <Text variant="title" style={{ flex: 1 }}>Pair to unlock your space</Text>
+      </View>
+      <Text variant="caption" color="textSoft">
+        Your streak, shared 2dos, the daily question and Goodies all need two
+        people. Friends, your profile and notifications work right now.
+      </Text>
+      <Button
+        full
+        label="Pair with your partner"
+        icon={<Ionicons name="heart-outline" size={17} color={theme.onPrimary} />}
+        onPress={() => router.push('/pairing')}
+      />
     </View>
   );
 }
@@ -446,6 +499,8 @@ const styles = StyleSheet.create({
   grabber: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', opacity: 0.7 },
   body: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md },
 
+  pairPrompt: { borderRadius: Radius.card, padding: Spacing.base, gap: Spacing.sm },
+  pairPromptHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   simpleStreak: {
     flexDirection: 'row',
     alignItems: 'center',

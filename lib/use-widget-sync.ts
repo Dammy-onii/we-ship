@@ -1,8 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { drainWidgetActions, setWidgetSession, syncWidgetSnapshot } from '@/widgets';
+import {
+  drainWidgetActions,
+  onWidgetInteraction,
+  setWidgetSession,
+  syncWidgetSnapshot,
+} from '@/widgets';
 import { useAuth } from './auth';
 import { backendConfig } from './backend/config';
+import { fetchWidgetFavourite } from './backend/repository';
 import { useFriends } from './friends';
 import { PARTNER_ID, useWidgetData, YOU_ID } from './store';
 import { buildWidgetSnapshot } from './widget-snapshot';
@@ -22,6 +28,8 @@ export function useWidgetSync() {
   // Widget buttons post to one RPC directly, so they need a token. Refreshed
   // on every auth change and cleared on sign-out.
   const accessToken = auth.session?.access_token;
+  const userId = auth.user?.id;
+  const [carouselOffset, setCarouselOffset] = useState({ partner: 0, friends: 0 });
   useEffect(() => {
     // Nothing here is worth crashing the app for: this component sits inside
     // the provider tree with no error boundary above it, so a throw would take
@@ -40,6 +48,27 @@ export function useWidgetSync() {
       // Older native build without this method.
     }
   }, [accessToken]);
+
+  /*
+   * In-widget button presses (iOS 17+).
+   *
+   * Nothing registered a handler before this, so the Nudge widget's buttons and
+   * the carousel arrows had nowhere to land — the widget fired an event the app
+   * never listened for.
+   *
+   * A widget cannot hold state, so paging is a round trip: the button reports
+   * its target, the app moves the offset, and the next snapshot redraws the
+   * widget. Offsets are in-memory on purpose — a relaunch should return the
+   * carousel to following the clock rather than resuming yesterday's browsing.
+   */
+  const handleInteraction = useCallback((target: string) => {
+    const [kind, surface, direction] = target.split(':');
+    if (kind !== 'carousel' || (surface !== 'partner' && surface !== 'friends')) return;
+    const step = direction === 'prev' ? -1 : 1;
+    setCarouselOffset((current) => ({ ...current, [surface]: current[surface] + step }));
+  }, []);
+
+  useEffect(() => onWidgetInteraction(handleInteraction), [handleInteraction]);
 
   /**
    * Flushes taps a widget button could not deliver — expired token, offline,
@@ -74,7 +103,10 @@ export function useWidgetSync() {
     if (!data.me || !data.partner) return;
 
     Promise.resolve()
-      .then(() =>
+      // The favourite lives on the server, not in the store: it is written by
+      // the *partner*, so nothing local ever changes when they set one.
+      .then(() => (userId ? fetchWidgetFavourite(userId).catch(() => null) : null))
+      .then((favourite) =>
         buildWidgetSnapshot({
           me: data.me,
           partner: data.partner,
@@ -91,6 +123,8 @@ export function useWidgetSync() {
           friendPosts: friends.posts,
           meId: YOU_ID,
           partnerId: PARTNER_ID,
+          favourite,
+          carouselOffset,
         }),
       )
       .then((snapshot) => {
@@ -110,6 +144,8 @@ export function useWidgetSync() {
       cancelled = true;
     };
   }, [
+    userId,
+    carouselOffset,
     data.me,
     data.partner,
     data.space,

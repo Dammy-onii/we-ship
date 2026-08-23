@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
-  Alert,
   Keyboard,
   Platform,
   Pressable,
@@ -17,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useQuestionQueue, useUser, YOU_ID } from '@/lib/store';
@@ -37,14 +37,14 @@ export default function QuestionQueueScreen() {
       setDraft('');
       Keyboard.dismiss();
     } catch (error) {
-      Alert.alert('Could not add question', userFacingError(error, 'Please try again.'));
+      showDialog('Could not add question', userFacingError(error, 'Please try again.'));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = (id: string) => {
-    Alert.alert(
+    showDialog(
       'Remove this question?',
       'It will be removed from your shared queue. Questions already used cannot be removed here.',
       [
@@ -53,7 +53,7 @@ export default function QuestionQueueScreen() {
           text: 'Remove',
           style: 'destructive',
           onPress: () => deleteQuestion(id).catch((error) => {
-            Alert.alert('Could not remove question', userFacingError(error, 'Please try again.'));
+            showDialog('Could not remove question', userFacingError(error, 'Please try again.'));
           }),
         },
       ],
@@ -97,6 +97,7 @@ export default function QuestionQueueScreen() {
           <View style={styles.composerFoot}>
             <Text variant="caption" color="textFaint">{draft.length}/240</Text>
             <Button
+              loading={busy}
               label={busy ? 'Adding…' : 'Add to queue'}
               disabled={busy || draft.trim().length < 5}
               onPress={add}

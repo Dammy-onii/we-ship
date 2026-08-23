@@ -1,7 +1,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardAvoider } from '@/components/ui/keyboard-avoider';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import * as integrations from '@/lib/backend/integrations';
 import { useBackendStatus } from '@/lib/store';
@@ -48,8 +49,8 @@ export default function CalendarScreen() {
     try {
       const result = await integrations.importGoogleCalendar(ids);
       await sync.refresh();
-      Alert.alert('Calendar updated', `${result.imported} imported · ${result.updated} updated`);
-    } catch (error) { Alert.alert('Import failed', userFacingError(error, 'Please try again.')); }
+      showDialog('Calendar updated', `${result.imported} imported · ${result.updated} updated`);
+    } catch (error) { showDialog('Import failed', userFacingError(error, 'Please try again.')); }
     finally { setBusy(false); }
   };
 
@@ -67,8 +68,8 @@ export default function CalendarScreen() {
       });
       setTitle(''); setDetails('');
       await sync.refresh();
-      Alert.alert('Event created', 'It is in Google Calendar and your shared Weship timeline.');
-    } catch (error) { Alert.alert('Could not create event', userFacingError(error, 'Please try again.')); }
+      showDialog('Event created', 'It is in Google Calendar and your shared Weship timeline.');
+    } catch (error) { showDialog('Could not create event', userFacingError(error, 'Please try again.')); }
     finally { setBusy(false); }
   };
 
@@ -90,7 +91,7 @@ export default function CalendarScreen() {
             </Pressable>
           ))}
           {!loadingCalendars && !calendarError && !calendars.length ? <DataState compact icon="calendar-outline" title="No calendars found" detail="Confirm the connected Google account has a calendar." /> : null}
-          <Button full label={busy ? 'Importing…' : 'Import selected events'} disabled={busy || !calendars.some((item) => item.selected)} onPress={importEvents} />
+          <Button full loading={busy} label={busy ? 'Importing…' : 'Import selected events'} disabled={!calendars.some((item) => item.selected)} onPress={importEvents} />
         </View>
 
         <View style={styles.section}>
@@ -103,7 +104,7 @@ export default function CalendarScreen() {
             <Text variant="bodyStrong">{date.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
           </Pressable>
           {showPicker ? <DateTimePicker value={date} mode="date" display={Platform.OS === 'ios' ? 'inline' : 'default'} themeVariant="light" accentColor={theme.primary} onChange={(_, next) => { if (Platform.OS === 'android') setShowPicker(false); if (next) setDate(next); }} /> : null}
-          <Button full label={busy ? 'Creating…' : 'Create in Google & Weship'} disabled={busy || !title.trim()} onPress={createEvent} />
+          <Button full loading={busy} label={busy ? 'Creating…' : 'Create in Google & Weship'} disabled={!title.trim()} onPress={createEvent} />
         </View>
       </ScrollView>
     </KeyboardAvoider>

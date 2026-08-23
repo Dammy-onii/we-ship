@@ -55,6 +55,8 @@ export const Palette = {
     success: '#6F846F',
     // scrim over photography
     scrim: 'rgba(24,32,27,0.55)',
+    /** Ground behind the Home hero before the pair has shared any imagery. */
+    heroEmpty: '#4A423B',
     // template-compat keys
     tint: '#704936',
     icon: '#5F5D59',
@@ -88,6 +90,8 @@ export const Palette = {
     gold: '#C5A66C',
     success: '#88A088',
     scrim: 'rgba(8,8,8,0.62)',
+    /** Ground behind the Home hero before the pair has shared any imagery. */
+    heroEmpty: '#2A2622',
     tint: '#B8B5AF',
     icon: '#B8B4AD',
     background: '#161616',

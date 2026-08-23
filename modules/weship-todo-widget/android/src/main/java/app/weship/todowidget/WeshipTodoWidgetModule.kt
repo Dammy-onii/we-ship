@@ -15,9 +15,6 @@ class WeshipTodoWidgetModule : Module() {
         .putString(KEY_TITLE, title)
         .putString(KEY_ROUTINE, routine)
         .putString(KEY_DEEP_LINK, deepLink)
-        // The app is the source of truth again, so clear the optimistic tick a
-        // widget button may have set.
-        .remove(KEY_TODO_DONE)
         .apply()
       WeshipWidgets.refreshAll(context)
     }
@@ -26,8 +23,9 @@ class WeshipTodoWidgetModule : Module() {
       val context = appContext.reactContext ?: return@AsyncFunction
       WidgetStore.prefs(context).edit()
         .putString(KEY_SNAPSHOT, json)
-        .remove(KEY_TODO_DONE)
         .apply()
+      // The app has spoken; drop only the optimistic ticks it now confirms.
+      WidgetStore.clearStaleLocalCompletions(context)
       WeshipWidgets.refreshAll(context)
     }
 
@@ -68,5 +66,5 @@ internal const val KEY_DEEP_LINK = "deep_link"
 internal const val KEY_SNAPSHOT = "snapshot"
 internal const val KEY_SESSION = "session"
 internal const val KEY_QUEUE = "action_queue"
-internal const val KEY_TODO_DONE = "todo_done"
-internal const val KEY_LAST_NUDGE = "last_nudge"
+/** Ids ticked from the widget, kept until the app's snapshot agrees. */
+internal const val KEY_TODO_DONE_IDS = "todo_done_ids"

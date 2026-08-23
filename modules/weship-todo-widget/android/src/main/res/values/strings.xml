@@ -1,9 +1,8 @@
 <resources>
   <string name="weship_todo_widget_name">Weship 2do</string>
-  <string name="weship_todo_widget_description">Your next incomplete shared 2do. Tap the circle to tick it off.</string>
+  <string name="weship_todo_widget_description">Your shared 2do list. Scroll it, and tap a circle to tick something off.</string>
   <string name="weship_todo_widget_label">WESHIP 2DO</string>
   <string name="weship_todo_widget_empty">All caught up</string>
-  <string name="weship_todo_widget_open">OPEN WESHIP</string>
   <string name="weship_todo_widget_status">2do status</string>
 
   <string name="weship_partner_widget_name">Weship Us</string>
@@ -13,27 +12,25 @@
   <string name="weship_carousel_empty">Nothing shared yet</string>
   <string name="weship_carousel_image">Shared image</string>
   <string name="weship_carousel_video">Video</string>
+  <string name="weship_carousel_previous">Previous</string>
+  <string name="weship_carousel_next">Next</string>
+  <string name="weship_carousel_empty_friends">No friends yet — tap to find people you know</string>
 
   <string name="weship_presence_widget_name">Weship Presence</string>
   <string name="weship_presence_widget_description">Your partner\'s mood and their time.</string>
   <string name="weship_presence_empty">Pair to see your person</string>
 
-  <string name="weship_streak_widget_name">Weship Streak</string>
-  <string name="weship_streak_widget_description">Your streak and today\'s question.</string>
-  <string name="weship_streak_no_question">No question yet today</string>
-  <string name="weship_streak_both">BOTH ANSWERED</string>
-  <string name="weship_streak_waiting">WAITING ON THEM</string>
-  <string name="weship_streak_your_turn">YOUR TURN</string>
+  <string name="weship_quick_widget_name">Weship Quick send</string>
+  <string name="weship_quick_widget_description">Send a photo, voice note or note in one tap.</string>
+  <string name="weship_quick_label">SEND TO %1$s</string>
+  <string name="weship_quick_label_generic">SEND SOMETHING</string>
+  <string name="weship_quick_photo">PHOTO</string>
+  <string name="weship_quick_voice">VOICE</string>
+  <string name="weship_quick_note">NOTE</string>
 
-  <string name="weship_nudge_widget_name">Weship Nudge</string>
-  <string name="weship_nudge_widget_description">Send a heart without opening the app.</string>
-  <string name="weship_nudge_prompt">Send them something</string>
-  <string name="weship_nudge_sent">Sent ✓</string>
-  <string name="weship_nudge_heart">❤️</string>
-  <string name="weship_nudge_thinking">\U0001F4AD</string>
-
-  <plurals name="weship_streak_days">
-    <item quantity="one">%d day streak</item>
-    <item quantity="other">%d day streak</item>
-  </plurals>
+  <string name="weship_preview_caption">Somewhere worth remembering</string>
+  <string name="weship_preview_author">YOU</string>
+  <string name="weship_preview_progress">1/3</string>
+  <string name="weship_preview_task">Pick a date-night film</string>
+  <string name="weship_preview_routine">WEEKLY</string>
 </resources>

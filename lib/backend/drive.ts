@@ -36,6 +36,19 @@ export async function uploadOriginalToDrive(
   return uploaded;
 }
 
+export type DriveStorage = {
+  /** Null on plans with no quota (some Workspace tiers). */
+  limitBytes: number | null;
+  usageBytes: number;
+  usageInDriveBytes: number;
+  email: string | null;
+};
+
+/** Storage headroom on the connected Google account. */
+export async function fetchDriveStorage(): Promise<DriveStorage> {
+  return (await invokeDrive({ action: 'quota' })) as DriveStorage;
+}
+
 export async function completeDriveUpload(input: Record<string, unknown>) {
   return invokeDrive({ action: 'complete', ...input });
 }

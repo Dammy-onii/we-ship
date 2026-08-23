@@ -28,10 +28,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
-import { HeaderActions, HeaderBackButton } from '@/components/app-header';
+import { EdgeMenuButton, HeaderActions, HeaderBackButton } from '@/components/app-header';
 import { AppDrawerContent } from '@/components/app-drawer';
 import { AuthGate } from '@/components/auth-gate';
 import { SyncErrorBanner } from '@/components/sync-error-banner';
+import { DialogHost } from '@/components/ui/dialog';
 import { ToastProvider } from '@/components/ui/toast';
 import { AppColorScheme, Palette, Spacing, Typography } from '@/constants/theme';
 import { AuthProvider } from '@/lib/auth';
@@ -130,6 +131,17 @@ export default function RootLayout() {
                */
               backBehavior="history"
               drawerContent={(props) => <AppDrawerContent {...props} />}
+              /*
+               * Wraps every screen rather than every screen adding the control
+               * itself. `screenLayout` runs inside the navigator, so the button
+               * can open the drawer directly.
+               */
+              screenLayout={({ children, navigation }) => (
+                <View style={styles.fill}>
+                  {children}
+                  <EdgeMenuButton onPress={() => navigation.openDrawer()} />
+                </View>
+              )}
               screenOptions={{
                 headerShown: false,
                 drawerType: 'front',
@@ -157,6 +169,8 @@ export default function RootLayout() {
               }}>
               <Drawer.Screen name="(tabs)" options={{ title: 'Weship' }} />
               <Drawer.Screen name="play" options={{ title: 'Play', drawerItemStyle: { display: 'none' } }} />
+              {/* Emailed sign-in and recovery links land here. */}
+              <Drawer.Screen name="auth" options={{ drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen name="us" options={{ drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen
                 name="goodies"
@@ -193,15 +207,28 @@ export default function RootLayout() {
                 }}
               />
               <Drawer.Screen name="connections" options={{ headerShown: true, title: 'Connections', drawerItemStyle: { display: 'none' } }} />
+              {/* Where Google's OAuth return lands; redirects to Connections. */}
+              <Drawer.Screen name="connections/google" options={{ drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen name="notification-settings" options={{ headerShown: true, title: 'Notifications', drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen name="calendar" options={{ headerShown: true, title: 'Calendar', drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen name="media" options={{ headerShown: true, title: 'Original', drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen name="friends" options={{ headerShown: true, title: 'Friends', drawerItemStyle: { display: 'none' } }} />
+              <Drawer.Screen
+                name="friend/[id]"
+                options={{
+                  headerShown: true,
+                  title: 'Profile',
+                  drawerItemStyle: { display: 'none' },
+                  headerLeft: () => <HeaderBackButton destination="/friends" />,
+                }}
+              />
             </Drawer>
                 {/* Light controls sit over the dark edge-to-edge backing panel. */}
                 <StatusBar style="light" />
                 {Platform.OS === 'android' ? <NavigationBar style="light" /> : null}
                 <AndroidSystemButtonPanel />
+                {/* Last, so a prompt is drawn above the drawer and the toast. */}
+                <DialogHost />
                 </FriendsProvider>
               </StoreProvider>
             </AuthGate>
@@ -214,6 +241,7 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   systemButtonPanel: {
     position: 'absolute',
     left: 0,

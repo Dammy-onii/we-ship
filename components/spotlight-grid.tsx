@@ -11,25 +11,39 @@ import { ensureCachedMedia } from '@/lib/media-cache';
 import { cacheScopeFor, type SpotlightItem } from '@/lib/spotlight-item';
 
 /**
- * The fluid two-column masonry shared by the partner Spotlight and the friend
+ * The responsive masonry shared by the partner Spotlight and the friend
  * Spotlight. Each kind gets a visually distinct card, and each declares its own
  * height — that is what makes the grid stagger rather than sit on a rigid grid.
  */
+
+/** Column sizing. Two hard-coded columns made cards enormous on anything wide. */
+const TARGET_COLUMN = 190;
+const MAX_COLUMN = 260;
+const MAX_COLUMNS = 5;
+/** No card grows past this, however tall its media wants to be. */
+const MAX_CARD_HEIGHT = 320;
+
 export function SpotlightSection({
   title,
   count,
   items,
   onOpen,
+  onLongPress,
 }: {
   title: string;
   count: number;
   items: SpotlightItem[];
   onOpen: (item: SpotlightItem) => void;
+  /** Optional secondary action — the partner gallery uses it to favourite. */
+  onLongPress?: (item: SpotlightItem) => void;
 }) {
   const theme = useTheme();
   const { width } = useWindowDimensions();
-  const columnWidth = (width - Spacing.lg * 2 - Spacing.sm) / 2;
-  const columns = useMemo(() => toColumns(items, 2, columnWidth), [items, columnWidth]);
+  const { columnCount, columnWidth } = useMemo(() => layoutFor(width), [width]);
+  const columns = useMemo(
+    () => toColumns(items, columnCount, columnWidth),
+    [items, columnCount, columnWidth],
+  );
 
   return (
     <View style={{ gap: Spacing.md }}>
@@ -43,6 +57,8 @@ export function SpotlightSection({
           </Text>
         </View>
       </View>
+      {/* Centred: on a wide screen the capped columns do not fill the row, and
+          left-aligning them leaves the gallery hugging one edge. */}
       <View style={styles.masonry}>
         {columns.map((column, columnIndex) => (
           <View key={columnIndex} style={{ width: columnWidth, gap: Spacing.sm }}>
@@ -55,6 +71,7 @@ export function SpotlightSection({
                   width={columnWidth}
                   height={cardHeight(item, columnWidth)}
                   onPress={() => onOpen(item)}
+                  onLongPress={onLongPress ? () => onLongPress(item) : undefined}
                 />
               </Animated.View>
             ))}
@@ -63,6 +80,26 @@ export function SpotlightSection({
       </View>
     </View>
   );
+}
+
+/**
+ * Picks a column count and width for the available space.
+ *
+ * Aims for roughly `TARGET_COLUMN` per column, never fewer than two, and caps
+ * the width so a tablet or a wide web window gets more columns rather than
+ * enormous ones.
+ */
+function layoutFor(width: number) {
+  const available = width - Spacing.lg * 2;
+  const columnCount = Math.max(
+    2,
+    Math.min(MAX_COLUMNS, Math.floor((available + Spacing.sm) / (TARGET_COLUMN + Spacing.sm))),
+  );
+  const columnWidth = Math.min(
+    MAX_COLUMN,
+    (available - Spacing.sm * (columnCount - 1)) / columnCount,
+  );
+  return { columnCount, columnWidth };
 }
 
 /**
@@ -89,18 +126,20 @@ function toColumns(items: SpotlightItem[], columnCount: number, width: number) {
 function cardHeight(item: SpotlightItem, width: number) {
   switch (item.kind) {
     case 'photo':
-    case 'video':
-      if (item.width && item.height) {
-        return width * Math.max(0.72, Math.min(1.45, item.height / item.width));
-      }
-      return width;
+    case 'video': {
+      const ratio =
+        item.width && item.height
+          ? Math.max(0.72, Math.min(1.45, item.height / item.width))
+          : 1;
+      return Math.min(MAX_CARD_HEIGHT, width * ratio);
+    }
     case 'voice':
       return 132;
     case 'reminder':
       return 148;
     default: {
       const length = item.text?.length ?? 0;
-      return Math.min(300, 116 + Math.round(length / 3.1));
+      return Math.min(MAX_CARD_HEIGHT, 116 + Math.round(length / 3.1));
     }
   }
 }
@@ -110,13 +149,15 @@ function SpotlightCard({
   width,
   height,
   onPress,
+  onLongPress,
 }: {
   item: SpotlightItem;
   width: number;
   height: number;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
-  const shared = { width, height, onPress };
+  const shared = { width, height, onPress, onLongPress };
   if (item.kind === 'photo' || item.kind === 'video') return <MediaCard item={item} {...shared} />;
   if (item.kind === 'voice') return <VoiceCard item={item} {...shared} />;
   if (item.kind === 'reminder') return <ReminderCard item={item} {...shared} />;
@@ -128,6 +169,7 @@ type CardProps = {
   width: number;
   height: number;
   onPress: () => void;
+  onLongPress?: () => void;
 };
 
 function byline(item: SpotlightItem) {
@@ -138,20 +180,25 @@ function CardShell({
   children,
   height,
   onPress,
+  onLongPress,
   label,
   style,
 }: {
   children: React.ReactNode;
   height: number;
   onPress: () => void;
+  onLongPress?: () => void;
   label: string;
   style?: object;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={onLongPress ? 'Press and hold to favourite this onto their widget' : undefined}
       style={({ pressed }) => [pressed && { opacity: 0.84, transform: [{ scale: 0.99 }] }]}>
       <View style={[styles.card, { height }, style]}>{children}</View>
     </Pressable>
@@ -159,7 +206,7 @@ function CardShell({
 }
 
 /** Photo/video: image fills the card, byline sits over a scrim. */
-function MediaCard({ item, height, onPress }: CardProps) {
+function MediaCard({ item, height, onPress, onLongPress }: CardProps) {
   const theme = useTheme();
   const scope = cacheScopeFor(item);
   const [uri, setUri] = useState<string | undefined>(item.uri);
@@ -180,6 +227,7 @@ function MediaCard({ item, height, onPress }: CardProps) {
     <CardShell
       height={height}
       onPress={onPress}
+      onLongPress={onLongPress}
       label={`${item.kind} from ${item.mine ? 'you' : item.authorName}`}
       style={{ backgroundColor: theme.surfaceAlt }}>
       {uri ? (
@@ -205,7 +253,7 @@ function MediaCard({ item, height, onPress }: CardProps) {
 }
 
 /** Voice: a waveform-styled card, visually unlike the others. */
-function VoiceCard({ item, height, onPress }: CardProps) {
+function VoiceCard({ item, height, onPress, onLongPress }: CardProps) {
   const theme = useTheme();
   const accent = item.mine ? theme.primary : theme.partner;
   // Deterministic bars from the id so a note looks the same on every render.
@@ -218,6 +266,7 @@ function VoiceCard({ item, height, onPress }: CardProps) {
     <CardShell
       height={height}
       onPress={onPress}
+      onLongPress={onLongPress}
       label={`Voice note from ${item.mine ? 'you' : item.authorName}`}
       style={{
         backgroundColor: item.mine ? theme.primarySoft : theme.partnerSoft,
@@ -248,12 +297,13 @@ function VoiceCard({ item, height, onPress }: CardProps) {
 }
 
 /** Note: type-led card that grows with its content. */
-function NoteCard({ item, height, onPress }: CardProps) {
+function NoteCard({ item, height, onPress, onLongPress }: CardProps) {
   const theme = useTheme();
   return (
     <CardShell
       height={height}
       onPress={onPress}
+      onLongPress={onLongPress}
       label={`Note from ${item.mine ? 'you' : item.authorName}`}
       style={{
         backgroundColor: theme.surface,
@@ -274,12 +324,13 @@ function NoteCard({ item, height, onPress }: CardProps) {
 }
 
 /** Reminder: deliberately the loudest card so it reads as an ask. */
-function ReminderCard({ item, height, onPress }: CardProps) {
+function ReminderCard({ item, height, onPress, onLongPress }: CardProps) {
   const theme = useTheme();
   return (
     <CardShell
       height={height}
       onPress={onPress}
+      onLongPress={onLongPress}
       label={`Reminder from ${item.mine ? 'you' : item.authorName}`}
       style={{
         backgroundColor: theme.gold + '24',
@@ -310,7 +361,12 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     alignItems: 'center',
   },
-  masonry: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
+  masonry: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
   card: { borderRadius: Radius.tile, overflow: 'hidden' },
   cardFallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

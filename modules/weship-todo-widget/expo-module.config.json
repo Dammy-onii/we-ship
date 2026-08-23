@@ -1,7 +1,17 @@
 {
-  "platforms": ["android"],
+  "platforms": [
+    "android",
+    "ios"
+  ],
   "android": {
-    "modules": ["app.weship.todowidget.WeshipTodoWidgetModule"]
+    "modules": [
+      "app.weship.todowidget.WeshipTodoWidgetModule",
+      "app.weship.todowidget.WeshipSystemSoundModule"
+    ]
+  },
+  "ios": {
+    "modules": [
+      "WeshipSystemSoundModule"
+    ]
   }
 }
-

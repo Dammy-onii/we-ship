@@ -48,6 +48,7 @@ private class CarouselFactory(
   override fun getViewAt(position: Int): RemoteViews {
     val slide = slides.getOrNull(position) ?: return RemoteViews(context.packageName, R.layout.weship_carousel_item)
     val views = RemoteViews(context.packageName, R.layout.weship_carousel_item)
+    val secondaryColor = context.getColor(R.color.weship_widget_secondary)
 
     val bitmap = slide.imageUri?.let { uri ->
       // Decoded at a bounded size: RemoteViews are delivered across a Binder
@@ -72,24 +73,46 @@ private class CarouselFactory(
         if (slide.text.isNullOrEmpty()) android.view.View.GONE else android.view.View.VISIBLE
       )
     } else {
-      // Notes — and any image that failed to decode — render as type.
+      // Notes — and any image that failed to decode — render as type. The
+      // bottom track would be an unreadable dark bar over the pale card, so it
+      // is dropped and the author moves into the note's own space.
       views.setViewVisibility(R.id.weship_slide_image, android.view.View.GONE)
       views.setViewVisibility(R.id.weship_slide_caption, android.view.View.GONE)
       views.setViewVisibility(R.id.weship_slide_note, android.view.View.VISIBLE)
       views.setTextViewText(R.id.weship_slide_note, slide.text.orEmpty())
+      views.setInt(R.id.weship_slide_track, "setBackgroundColor", android.graphics.Color.TRANSPARENT)
+      views.setTextColor(R.id.weship_slide_author, secondaryColor)
+      views.setTextColor(R.id.weship_slide_source, secondaryColor)
+      views.setInt(R.id.weship_slide_source, "setBackgroundResource", 0)
     }
 
     views.setTextViewText(
       R.id.weship_slide_author,
-      if (slide.pinned) "📌 ${slide.author}" else slide.author
+      if (slide.favourite) "★ ${slide.author}" else slide.author
+    )
+
+    // The source and this slide's place in the deck, drawn on the slide itself.
+    // Both used to live on the widget root, which forced a strip of bare card
+    // above the photo.
+    views.setTextViewText(
+      R.id.weship_slide_source,
+      context.getString(
+        if (source == "partnerSlides") R.string.weship_partner_widget_name
+        else R.string.weship_friends_widget_name
+      ).uppercase() + if (slides.size > 1) "  ${position + 1}/${slides.size}" else ""
     )
     views.setViewVisibility(
       R.id.weship_slide_play,
       if (slide.kind == "video") android.view.View.VISIBLE else android.view.View.GONE
     )
 
-    // Filled in from the widget's pending-intent template.
-    views.setOnClickFillInIntent(R.id.weship_slide_root, Intent())
+    // Fills the template with this slide's own link, so a tap opens the item
+    // being looked at. An empty Intent here meant every slide fell back to the
+    // template's URL and opened the top of the gallery instead.
+    views.setOnClickFillInIntent(
+      R.id.weship_slide_root,
+      slide.route?.let { Intent().setData(android.net.Uri.parse(it)) } ?: Intent()
+    )
     return views
   }
 

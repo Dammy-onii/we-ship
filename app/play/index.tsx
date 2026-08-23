@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -15,6 +15,7 @@ import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Text } from '@/components/ui/text';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useAuth } from '@/lib/auth';
@@ -291,7 +292,7 @@ function TogetherPick() {
         setError(undefined);
       } catch (reason) {
         setChoice(game.myChoice);
-        Alert.alert('Could not save your choice', userFacingError(reason, 'Please try again.'));
+        showDialog('Could not save your choice', userFacingError(reason, 'Please try again.'));
       } finally {
         setBusy(false);
       }
@@ -310,7 +311,7 @@ function TogetherPick() {
       setChoice(state.myChoice);
       setError(undefined);
     } catch (reason) {
-      Alert.alert('Could not start another pick', userFacingError(reason, 'Please try again.'));
+      showDialog('Could not start another pick', userFacingError(reason, 'Please try again.'));
     } finally {
       setBusy(false);
     }
@@ -402,6 +403,7 @@ function TogetherPick() {
           size="sm"
           variant="soft"
           style={styles.pickAgain}
+          loading={busy}
           label={busy ? 'Starting…' : 'Pick again'}
           disabled={busy}
           onPress={again}

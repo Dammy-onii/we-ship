@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -11,9 +11,12 @@ import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { goodieToItem, type SpotlightItem } from '@/lib/spotlight-item';
+import { goodieToItem, groupByDay, type SpotlightItem } from '@/lib/spotlight-item';
+import * as repository from '@/lib/backend/repository';
+import { userFacingError } from '@/lib/user-facing-error';
+import { useToast } from '@/components/ui/toast';
 import { useBackendStatus, useGoodies, useMe, usePartner, YOU_ID } from '@/lib/store';
-import { dayKeyForInstant, dayKeyIn, deviceTimezone } from '@/lib/time';
+import { deviceTimezone } from '@/lib/time';
 import type { GoodieKind } from '@/lib/types';
 
 type Filter = 'all' | GoodieKind;
@@ -35,9 +38,14 @@ export default function SpotlightScreen() {
   const partner = usePartner();
   const [filter, setFilter] = useState<Filter>('all');
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const toast = useToast();
+  // `?item=` arrives from the Us widget, which lands on the exact photo rather
+  // than the top of the gallery. Remembered once dismissed so closing the
+  // viewer does not immediately reopen it on the same param.
+  const { item: requestedItem } = useLocalSearchParams<{ item?: string }>();
+  const [dismissedRequest, setDismissedRequest] = useState<string>();
 
   const timezone = deviceTimezone();
-  const today = dayKeyIn(timezone);
   const visible = useMemo(() => {
     const source = filter === 'all' ? goodies : goodies.filter((g) => g.kind === filter);
     return source.map((goodie) => {
@@ -46,17 +54,48 @@ export default function SpotlightScreen() {
     });
   }, [goodies, filter, me, partner]);
 
-  const todays = visible.filter((item) => dayKeyForInstant(item.createdAt, timezone) === today);
-  const earlier = visible.filter((item) => dayKeyForInstant(item.createdAt, timezone) !== today);
+  const days = groupByDay(visible, timezone);
 
   const openViewer = (item: SpotlightItem) => {
     const position = visible.findIndex((candidate) => candidate.id === item.id);
     if (position >= 0) setViewerIndex(position);
   };
 
+  const requestIndex =
+    requestedItem && requestedItem !== dismissedRequest
+      ? visible.findIndex((candidate) => candidate.id === requestedItem)
+      : -1;
+  const activeIndex = viewerIndex ?? (requestIndex >= 0 ? requestIndex : null);
+
+  const closeViewer = () => {
+    setViewerIndex(null);
+    if (requestedItem) setDismissedRequest(requestedItem);
+  };
+
+  /**
+   * Puts this item at the front of the partner's "Us" widget.
+   *
+   * Only photos and notes: the widget renders a still, and there is no frame to
+   * show for a video or a voice note.
+   */
+  const favourite = async (item: SpotlightItem) => {
+    if (item.kind !== 'photo' && item.kind !== 'note') {
+      toast.show('Only a photo or a note can be favourited.', { tone: 'info' });
+      return;
+    }
+    try {
+      await repository.favouriteGoodieForWidget(item.id);
+      toast.show(`Favourited for ${partner.displayName}'s widget.`, { tone: 'success' });
+    } catch (error) {
+      toast.show(userFacingError(error, 'Could not favourite that.'));
+    }
+  };
+
   return (
     <Screen gradient>
-      <AppHeader title="Spotlight" subtitle={`What ${partner.displayName} shared`} />
+      {/* Named for its audience. Two near-identical galleries called
+          "Spotlight" and "Friends" gave no clue which one a post would go to. */}
+      <AppHeader title="Spotlight" subtitle={`Just you and ${partner.displayName}`} />
 
       <View style={styles.body}>
         <ScrollView
@@ -97,12 +136,16 @@ export default function SpotlightScreen() {
           />
         ) : (
           <>
-            {todays.length ? (
-              <SpotlightSection title="Today" count={todays.length} items={todays} onOpen={openViewer} />
-            ) : null}
-            {earlier.length ? (
-              <SpotlightSection title="Earlier" count={earlier.length} items={earlier} onOpen={openViewer} />
-            ) : null}
+            {days.map((day) => (
+              <SpotlightSection
+                key={day.key}
+                title={day.title}
+                count={day.items.length}
+                items={day.items}
+                onOpen={openViewer}
+                onLongPress={favourite}
+              />
+            ))}
           </>
         )}
 
@@ -122,8 +165,8 @@ export default function SpotlightScreen() {
         </Pressable>
       </View>
 
-      {viewerIndex !== null ? (
-        <MediaViewer items={visible} startIndex={viewerIndex} onClose={() => setViewerIndex(null)} />
+      {activeIndex !== null ? (
+        <MediaViewer items={visible} startIndex={activeIndex} onClose={closeViewer} />
       ) : null}
     </Screen>
   );

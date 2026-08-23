@@ -2,12 +2,13 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import {
   driveMediaSource,
@@ -52,7 +53,7 @@ export default function MediaScreen() {
       await sync.refresh();
       router.back();
     } catch (reason) {
-      Alert.alert('Could not delete media', userFacingError(reason, 'Please try again.'));
+      showDialog('Could not delete media', userFacingError(reason, 'Please try again.'));
       setDeleting(false);
     }
   };
@@ -98,7 +99,7 @@ export default function MediaScreen() {
             variant="ghost"
             tone="partner"
             disabled={deleting}
-            onPress={() => Alert.alert(
+            onPress={() => showDialog(
               'Delete this media?',
               'This removes the original from your Google Drive and the shared preview from Weship. This cannot be undone.',
               [

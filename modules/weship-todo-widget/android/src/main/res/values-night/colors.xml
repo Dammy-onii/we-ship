@@ -1,8 +1,0 @@
-<resources>
-  <color name="weship_widget_background">#1C1C1C</color>
-  <color name="weship_widget_text">#F2F0EB</color>
-  <color name="weship_widget_secondary">#AAA7A2</color>
-  <color name="weship_widget_scrim">#99000000</color>
-  <color name="weship_widget_on_scrim">#FFFCF7</color>
-  <color name="weship_widget_button_fill">#333333</color>
-</resources>

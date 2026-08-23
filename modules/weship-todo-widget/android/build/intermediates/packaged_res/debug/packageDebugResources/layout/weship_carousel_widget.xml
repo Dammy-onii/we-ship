@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Deliberately has no background of its own.
+
+  The widget root and every slide both painted the same rounded card, so the
+  card was drawn twice — once behind the StackView and once inside it — and the
+  photo appeared to float in a white frame instead of filling the widget.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/weship_carousel_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <StackView
+    android:id="@+id/weship_carousel_stack"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:loopViews="true"
+    android:autoStart="true" />
+
+  <LinearLayout
+    android:id="@+id/weship_carousel_empty"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="18dp"
+    android:background="@drawable/weship_widget_background">
+
+    <TextView
+      android:id="@+id/weship_carousel_empty_text"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:gravity="center"
+      android:textSize="13sp"
+      android:textColor="@color/weship_widget_secondary" />
+  </LinearLayout>
+
+  <!--
+    Arrows sit on the widget root rather than inside the stack: a view inside a
+    RemoteViews collection can only carry a fill-in intent, so it cannot run an
+    action of its own.
+  -->
+  <LinearLayout
+    android:id="@+id/weship_carousel_controls"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom|end"
+    android:layout_marginEnd="10dp"
+    android:layout_marginBottom="10dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <TextView
+      android:id="@+id/weship_carousel_counter"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginEnd="8dp"
+      android:textSize="10sp"
+      android:textStyle="bold"
+      android:textColor="@color/weship_widget_on_scrim" />
+
+    <ImageView
+      android:id="@+id/weship_carousel_previous"
+      android:layout_width="30dp"
+      android:layout_height="30dp"
+      android:padding="5dp"
+      android:background="@drawable/weship_widget_control"
+      android:src="@drawable/weship_icon_chevron_left"
+      android:contentDescription="@string/weship_carousel_previous" />
+
+    <ImageView
+      android:id="@+id/weship_carousel_next"
+      android:layout_width="30dp"
+      android:layout_height="30dp"
+      android:layout_marginStart="6dp"
+      android:padding="5dp"
+      android:background="@drawable/weship_widget_control"
+      android:src="@drawable/weship_icon_chevron_right"
+      android:contentDescription="@string/weship_carousel_next" />
+  </LinearLayout>
+</FrameLayout>

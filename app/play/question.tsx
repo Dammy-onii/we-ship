@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Keyboard,
   Platform,
   Pressable,
@@ -23,6 +22,7 @@ import { DataState } from '@/components/ui/data-state';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import {
@@ -62,7 +62,7 @@ export default function QuestionScreen() {
     } catch (error) {
       const message = userFacingError(error, 'Please try again.');
       // Keep the prompt in the field so the user can retry or copy it.
-      Alert.alert('Could not set today’s question', message);
+      showDialog('Could not set today’s question', message);
     } finally {
       setSettingQuestion(false);
     }

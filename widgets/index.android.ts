@@ -59,12 +59,17 @@ export function setWidgetSession(
   call('setSession', session ? JSON.stringify(session) : null)?.catch(() => {});
 }
 
+/*
+ * Android widgets are hand-written `AppWidgetProvider`s in
+ * `modules/weship-todo-widget`, not `expo-widgets` surfaces, so a kind only
+ * belongs here once it has a provider and a manifest receiver. Keep this list
+ * in step with `WeshipWidgets.providers`.
+ */
 export const WIDGET_KINDS = [
   'partner-carousel',
   'friends-carousel',
   'presence',
-  'streak-question',
-  'nudge',
+  'quick-send',
   'todo',
 ];
 
@@ -85,4 +90,15 @@ export async function drainWidgetActions(): Promise<{ type: string; id: string; 
   } catch {
     return [];
   }
+}
+
+/**
+ * In-widget button presses.
+ *
+ * Android has no equivalent listener: its widget buttons fire a broadcast the
+ * native receiver handles directly, and anything needing the app is queued for
+ * `drainWidgetActions`. Present so callers can stay platform-agnostic.
+ */
+export function onWidgetInteraction(_handler: (target: string) => void): () => void {
+  return () => {};
 }

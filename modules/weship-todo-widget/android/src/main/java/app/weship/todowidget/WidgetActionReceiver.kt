@@ -23,14 +23,36 @@ class WidgetActionReceiver : BroadcastReceiver() {
     val action = intent.getStringExtra(EXTRA_ACTION) ?: return
     val target = intent.getStringExtra(EXTRA_TARGET).orEmpty()
 
+    // Stepping a carousel is purely local — nothing to send anywhere.
+    if (action == ACTION_CAROUSEL_NEXT || action == ACTION_CAROUSEL_PREVIOUS) {
+      val provider =
+        if (target == "partnerSlides") PartnerCarouselProvider::class.java
+        else FriendsCarouselProvider::class.java
+      WeshipWidgets.step(context, provider, forward = action == ACTION_CAROUSEL_NEXT)
+      return
+    }
+
+    // Rows that cannot be ticked in place — done, note-required — open the app.
+    if (action == ACTION_OPEN_TODO) {
+      context.startActivity(
+        Intent(Intent.ACTION_VIEW, android.net.Uri.parse("weship://todo")).apply {
+          setPackage(context.packageName)
+          flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+      )
+      return
+    }
+
     // Reflect the tap immediately; correctness is reconciled by the app.
     if (action == ACTION_COMPLETE_TASK) {
-      WidgetStore.prefs(context).edit().putBoolean(KEY_TODO_DONE, true).apply()
+      if (target.isEmpty()) return
+      WidgetStore.markCompletedLocally(context, target)
       refresh(context, TopTodoWidgetProvider::class.java)
-    }
-    if (action == ACTION_NUDGE) {
-      WidgetStore.prefs(context).edit().putLong(KEY_LAST_NUDGE, System.currentTimeMillis()).apply()
-      refresh(context, NudgeWidgetProvider::class.java)
+      AppWidgetManager.getInstance(context).notifyAppWidgetViewDataChanged(
+        AppWidgetManager.getInstance(context)
+          .getAppWidgetIds(ComponentName(context, TopTodoWidgetProvider::class.java)),
+        R.id.weship_widget_list
+      )
     }
 
     val session = WidgetStore.session(context)
@@ -52,8 +74,6 @@ class WidgetActionReceiver : BroadcastReceiver() {
       ACTION_COMPLETE_TASK ->
         "rpc/set_task_complete" to
           """{"p_task_id":"$target","p_completed":true,"p_note":null,"p_local_date":null}"""
-      ACTION_NUDGE ->
-        "rpc/send_widget_nudge" to """{"p_kind":"${target.ifEmpty { "thinkingOfYou" }}"}"""
       else -> return false
     }
 
@@ -86,6 +106,8 @@ class WidgetActionReceiver : BroadcastReceiver() {
     const val EXTRA_ACTION = "weship_action"
     const val EXTRA_TARGET = "weship_target"
     const val ACTION_COMPLETE_TASK = "complete_task"
-    const val ACTION_NUDGE = "nudge"
+    const val ACTION_OPEN_TODO = "open_todo"
+    const val ACTION_CAROUSEL_NEXT = "carousel_next"
+    const val ACTION_CAROUSEL_PREVIOUS = "carousel_previous"
   }
 }

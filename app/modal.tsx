@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Flame, Sprig } from '@/components/art/botanicals';
@@ -10,11 +10,14 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useBackendStatus, useMe, usePartner, useSpace, useStreak } from '@/lib/store';
 import * as repository from '@/lib/backend/repository';
 import { dayKeyIn, deviceTimezone } from '@/lib/time';
+import { genderLabel } from '@/lib/gender';
+import { useSetupStatus } from '@/lib/use-setup-status';
 
 const ROWS = [
   { icon: 'person-outline', label: 'Account', hint: 'Name, profile photo, timezone, and sign out', ready: true, href: '/account' },
@@ -34,6 +37,7 @@ export default function ProfileModal() {
   const router = useRouter();
   const sync = useBackendStatus();
   const space = useSpace();
+  const { pending } = useSetupStatus();
   const together = timeTogether(space.anniversary);
   const [editingAnniversary, setEditingAnniversary] = useState(false);
   const anniversaryValue = space.anniversary
@@ -57,13 +61,48 @@ export default function ProfileModal() {
           </View>
           <Avatar name={partner.displayName} seed={partner.photoSeed} uri={partner.photoUri} ring="them" size={62} />
         </View>
+        {space.name ? (
+          <Text variant="micro" color="textFaint">{space.name.toUpperCase()}</Text>
+        ) : null}
         <Text variant="title">You & {partner.displayName}</Text>
+        {genderLabel(me.gender) ? (
+          <Text variant="caption" color="textFaint">{genderLabel(me.gender)}</Text>
+        ) : null}
         <View style={styles.stats}>
           <Stat value={`${streak.count}`} label="DAY STREAK" icon={<Flame size={15} color={theme.gold} />} />
           <View style={[styles.divider, { backgroundColor: theme.line }]} />
           {together ? <Stat value={together} label="TOGETHER" /> : null}
         </View>
       </View>
+
+      {/* Permissions and connections the user still has to grant. Drive in
+          particular is invisible until something fails to upload without it. */}
+      {pending.length ? (
+        <Pressable
+          onPress={() => router.push(pending[0].href)}
+          accessibilityRole="button"
+          accessibilityLabel={`${pending.length} things still need your attention`}
+          style={({ pressed }) => [
+            styles.pending,
+            { backgroundColor: theme.partnerSoft, borderColor: theme.partner },
+            pressed && { opacity: 0.75 },
+          ]}>
+          <View style={[styles.pendingCount, { backgroundColor: theme.partner }]}>
+            <Text variant="captionStrong" style={{ color: theme.onPrimary }}>
+              {pending.length}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text variant="bodyStrong">
+              {pending.length === 1 ? 'One thing needs your attention' : `${pending.length} things need your attention`}
+            </Text>
+            <Text variant="caption" color="textSoft" numberOfLines={1}>
+              {pending.map((step) => step.label).join(' · ')}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={17} color={theme.textSoft} />
+        </Pressable>
+      ) : null}
 
       <View style={styles.anniversary}>
         <Text variant="micro" color="textFaint">ANNIVERSARY</Text>
@@ -86,7 +125,7 @@ export default function ProfileModal() {
                 await sync.refresh();
                 if (Platform.OS === 'ios') setEditingAnniversary(false);
               } catch (error) {
-                Alert.alert('Could not save anniversary', userFacingError(error, 'Please try again.'));
+                showDialog('Could not save anniversary', userFacingError(error, 'Please try again.'));
               }
             }}
           />
@@ -119,6 +158,9 @@ export default function ProfileModal() {
                   : r.hint}
               </Text>
             </View>
+            {pending.some((step) => step.row === r.label) ? (
+              <View style={[styles.warnDot, { backgroundColor: theme.partner }]} />
+            ) : null}
             {r.ready ? (
               'href' in r ? <Ionicons name="chevron-forward" size={17} color={theme.textFaint} /> : (
                 <Text variant="micro" color="primaryDeep">CURRENT</Text>
@@ -199,4 +241,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   soon: { paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: Radius.pill },
+  pending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.inset,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  pendingCount: {
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warnDot: { width: 8, height: 8, borderRadius: 4 },
 });

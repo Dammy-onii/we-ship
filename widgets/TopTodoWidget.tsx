@@ -10,6 +10,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget, type WidgetEnvironment } from 'expo-widgets';
 
+import { widgetTheme } from './shared';
+
 export type TopTodoWidgetProps = {
   title: string;
   routine: string;
@@ -18,12 +20,9 @@ export type TopTodoWidgetProps = {
 
 function TopTodoWidgetView(props: TopTodoWidgetProps, environment: WidgetEnvironment) {
   'widget';
-  const dark = environment.colorScheme === 'dark';
-  const background = dark ? '#1C1C1C' : '#F3F1EC';
-  const text = dark ? '#F2F0EB' : '#252321';
-  const secondary = dark ? '#AAA7A2' : '#706C67';
-  const accent = dark ? '#CBC6BE' : '#5F5B57';
-  const compact = environment.widgetFamily === 'systemSmall';
+  // Was a private copy of the palette, and had been left behind on the old
+  // grey accent while every other widget moved on. One source now.
+  const { background, text, secondary, accent, compact } = widgetTheme(environment);
 
   return (
     <VStack

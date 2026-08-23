@@ -14,6 +14,11 @@ import { userFacingError } from './user-facing-error';
  * hashes; the server derives every user's own hash from their verified sign-up
  * email and compares. Raw contacts never leave the phone and are never stored.
  *
+ * Matching is by email: the server derives each person's hash from the address
+ * they verified at sign-up, which is the only identifier it can trust. Phone
+ * numbers are hashed and uploaded too, so they will match as soon as verified
+ * phone numbers exist, but today they will not find anyone on their own.
+ *
  * The salt is app-wide and public — it must match `private.contact_salt()` in
  * the database. It defeats a generic rainbow table; it does **not** make a
  * low-entropy identifier like an email unguessable to anyone holding both this
@@ -45,7 +50,8 @@ function normalizePhone(raw: string): string | null {
 
 export type ContactScanResult =
   | { ok: true; scanned: number; matches: PersonSummary[] }
-  | { ok: false; reason: string };
+  /** `canOpenSettings` marks the case the user cannot fix from inside the app. */
+  | { ok: false; reason: string; canOpenSettings?: boolean };
 
 /**
  * Reads the address book, uploads hashes, and returns who is already here.
@@ -63,14 +69,38 @@ export async function scanContacts(): Promise<ContactScanResult> {
     return { ok: false, reason: 'Contacts are not available in this build.' };
   }
 
-  const permission = await contacts.requestPermissionsAsync();
+  // `getPermissionsAsync` first: on both platforms a second
+  // `requestPermissionsAsync` after a denial resolves immediately as denied
+  // without showing anything, which looked from the outside like the scan
+  // silently doing nothing.
+  const existing = await contacts.getPermissionsAsync();
+  const permission =
+    existing.status === 'granted'
+      ? existing
+      : existing.canAskAgain
+        ? await contacts.requestPermissionsAsync()
+        : existing;
+
   if (permission.status !== 'granted') {
-    return { ok: false, reason: 'Weship needs permission to read your contacts.' };
+    return {
+      ok: false,
+      reason: permission.canAskAgain
+        ? 'Weship needs permission to read your contacts.'
+        : 'Contacts access is turned off for Weship. You can turn it back on in Settings.',
+      canOpenSettings: !permission.canAskAgain,
+    };
   }
 
-  const { data } = await contacts.getContactsAsync({
-    fields: [contacts.Fields.Emails, contacts.Fields.PhoneNumbers],
-  });
+  let data: Awaited<ReturnType<typeof contacts.getContactsAsync>>['data'];
+  try {
+    ({ data } = await contacts.getContactsAsync({
+      fields: [contacts.Fields.Emails, contacts.Fields.PhoneNumbers],
+    }));
+  } catch (cause) {
+    // Reported rather than swallowed: a failure here used to be indistinguishable
+    // from an address book with nobody in it.
+    return { ok: false, reason: userFacingError(cause, 'Your contacts could not be read on this device.') };
+  }
 
   const identifiers = new Set<string>();
   for (const contact of data ?? []) {
@@ -93,8 +123,12 @@ export async function scanContacts(): Promise<ContactScanResult> {
     return { ok: false, reason: userFacingError(sync.error, 'Could not match contacts. Please try again.') };
   }
 
-  const matches = await findContactsOnWeship();
-  return { ok: true, scanned: identifiers.size, matches };
+  try {
+    const matches = await findContactsOnWeship();
+    return { ok: true, scanned: identifiers.size, matches };
+  } catch (cause) {
+    return { ok: false, reason: userFacingError(cause, 'Could not check your contacts against Weship.') };
+  }
 }
 
 /** People already on Weship who appear in the contacts synced earlier. */

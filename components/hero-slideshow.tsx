@@ -5,12 +5,14 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Text } from '@/components/ui/text';
+import { useTheme } from '@/hooks/use-theme';
 import { Gradients, Spacing } from '@/constants/theme';
 import { ensureCachedMedia } from '@/lib/media-cache';
 import type { Goodie } from '@/lib/types';
 
 const ADVANCE_MS = 5200;
 const MAX_SLIDES = 8;
+
 
 /**
  * The Home hero backdrop: a slow slideshow of what has recently been shared.
@@ -20,6 +22,7 @@ const MAX_SLIDES = 8;
  * rather than slide, so the presence text layered above stays readable.
  */
 export function HeroSlideshow({ goodies, height }: { goodies: Goodie[]; height: number }) {
+  const theme = useTheme();
   const slides = useMemo(
     () =>
       goodies
@@ -48,7 +51,11 @@ export function HeroSlideshow({ goodies, height }: { goodies: Goodie[]; height: 
           <Slide goodie={current} />
         </Animated.View>
       ) : (
-        <LinearGradient colors={Gradients.dawn} style={StyleSheet.absoluteFill} />
+        // A space with nothing shared yet gets a solid ground rather than an
+        // image. Deep enough that the presence text above it keeps the same
+        // light treatment it has over a photo, so the hero does not change
+        // character the moment the first photo arrives.
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.heroEmpty }]} />
       )}
 
       {slides.length > 1 ? (

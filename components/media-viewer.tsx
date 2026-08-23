@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
@@ -22,9 +21,9 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
+import { VoicePlayer } from '@/components/voice-player';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
-import { enterPlaybackMode } from '@/lib/audio-mode';
 import { driveMediaSource, type AuthenticatedMediaSource } from '@/lib/backend/media-source';
 import { ensureCachedMedia } from '@/lib/media-cache';
 import { cacheScopeFor } from '@/lib/spotlight-item';
@@ -242,27 +241,13 @@ function VideoSlide({
 }
 
 function VoiceSlide({ uri, seconds }: { uri?: string; seconds?: number }) {
-  const player = useAudioPlayer(uri ?? null);
-  const status = useAudioPlayerStatus(player);
-
   return (
-    <View style={styles.centered}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={status.playing ? 'Pause voice note' : 'Play voice note'}
-        onPress={async () => {
-          await enterPlaybackMode();
-          if (status.playing) player.pause();
-          else {
-            if (status.didJustFinish) await player.seekTo(0);
-            player.play();
-          }
-        }}
-        style={styles.voiceButton}>
-        <Ionicons name={status.playing ? 'pause' : 'play'} size={34} color="#1E1D19" />
-      </Pressable>
+    <View style={[styles.centered, { paddingHorizontal: Spacing.xl }]}>
+      <View style={styles.voicePanel}>
+        <VoicePlayer uri={uri} seconds={seconds} tone="photo" />
+      </View>
       <Text variant="captionStrong" onPhoto>
-        Voice note{seconds ? ` · ${seconds}s` : ''}
+        Voice note
       </Text>
     </View>
   );
@@ -294,14 +279,7 @@ const styles = StyleSheet.create({
   },
   close: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg },
-  voiceButton: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: '#FCFAF7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  voicePanel: { alignSelf: 'stretch', maxWidth: 460, width: '100%' },
   caption: {
     position: 'absolute',
     left: 0,

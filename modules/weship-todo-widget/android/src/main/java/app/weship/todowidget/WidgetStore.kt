@@ -29,9 +29,65 @@ internal object WidgetStore {
         imageUri = item.optString("imageUri").takeIf { it.isNotEmpty() },
         text = item.optString("text").takeIf { it.isNotEmpty() },
         author = item.optString("author"),
-        pinned = item.optBoolean("pinned", false),
+        favourite = item.optBoolean("favourite", false),
+        route = item.optString("route").takeIf { it.isNotEmpty() },
       )
     }
+  }
+
+  /** One row of the 2do widget's list. */
+  data class Task(
+    val id: String,
+    val label: String,
+    val routine: String,
+    val noteRequired: Boolean,
+    val done: Boolean,
+  )
+
+  fun tasks(context: Context): List<Task> {
+    val array = snapshot(context).optJSONArray("todos") ?: return emptyList()
+    val completedLocally = completedLocally(context)
+    return (0 until array.length()).mapNotNull { index ->
+      val item = array.optJSONObject(index) ?: return@mapNotNull null
+      val id = item.optString("id")
+      Task(
+        id = id,
+        label = item.optString("label"),
+        routine = item.optString("routine"),
+        noteRequired = item.optBoolean("noteRequired", false),
+        // A tick made from the widget shows immediately, before the app has
+        // confirmed it and written a fresh snapshot.
+        done = item.optBoolean("done", false) || completedLocally.contains(id),
+      )
+    }
+  }
+
+  /** Task ids ticked from the widget since the last snapshot arrived. */
+  fun completedLocally(context: Context): Set<String> =
+    prefs(context).getStringSet(KEY_TODO_DONE_IDS, emptySet()) ?: emptySet()
+
+  fun markCompletedLocally(context: Context, id: String) {
+    val store = prefs(context)
+    store.edit()
+      .putStringSet(KEY_TODO_DONE_IDS, completedLocally(context) + id)
+      .apply()
+  }
+
+  /**
+   * Forgets local ticks once the app's own snapshot reflects them.
+   *
+   * Without this a task stays struck through forever from the widget's point of
+   * view, including after it is reopened or deleted in the app.
+   */
+  fun clearStaleLocalCompletions(context: Context) {
+    val live = snapshot(context).optJSONArray("todos") ?: return
+    val open = (0 until live.length())
+      .mapNotNull { live.optJSONObject(it) }
+      .filter { !it.optBoolean("done", false) }
+      .map { it.optString("id") }
+      .toSet()
+    val kept = completedLocally(context).intersect(open)
+    prefs(context).edit().putStringSet(KEY_TODO_DONE_IDS, kept).apply()
   }
 
   data class Slide(
@@ -40,7 +96,10 @@ internal object WidgetStore {
     val imageUri: String?,
     val text: String?,
     val author: String,
-    val pinned: Boolean,
+    /** Chosen by the partner to lead the carousel. Was `pinned` before the rename. */
+    val favourite: Boolean,
+    /** Deep link to this exact item, so a tap does not just open the gallery. */
+    val route: String?,
   )
 
   /** Session the widget buttons use to call one RPC directly. */

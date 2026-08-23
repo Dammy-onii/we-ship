@@ -12,7 +12,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { SlideInUp, SlideOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as Haptics from 'expo-haptics';
+
 import { Text } from '@/components/ui/text';
+import { playAlertSound } from '@/lib/alert-sound';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -22,7 +25,10 @@ type Toast = { id: number; message: string; tone: ToastTone; onRetry?: () => voi
 
 type ToastContextValue = {
   /** Shows a transient message. Repeating the same text will not stack it. */
-  show: (message: string, options?: { tone?: ToastTone; onRetry?: () => void }) => void;
+  show: (
+    message: string,
+    options?: { tone?: ToastTone; onRetry?: () => void; silent?: boolean },
+  ) => void;
   dismiss: () => void;
 };
 
@@ -49,6 +55,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextId = useRef(0);
+  const shownMessage = useRef<string | null>(null);
 
   const clearTimer = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -57,20 +64,43 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const dismiss = useCallback(() => {
     clearTimer();
+    shownMessage.current = null;
     setToast(null);
   }, []);
 
   const show = useCallback<ToastContextValue['show']>((message, options) => {
     const text = message?.trim();
     if (!text) return;
+    const tone = options?.tone ?? 'error';
+    // Tracked in a ref rather than read back from state: a state updater is not
+    // guaranteed to run synchronously, so deciding "is this new?" inside one
+    // would announce unpredictably.
+    const announced = shownMessage.current !== text;
+    shownMessage.current = text;
     setToast((current) => {
       // Re-showing the identical message restarts its timer rather than
       // flashing the toast out and back in.
       if (current?.message === text) return current;
-      return { id: (nextId.current += 1), message: text, tone: options?.tone ?? 'error', onRetry: options?.onRetry };
+      return { id: (nextId.current += 1), message: text, tone, onRetry: options?.onRetry };
     });
+    // A toast that slides in silently is easy to miss while looking elsewhere on
+    // the screen. Sound and haptics only fire for a genuinely new message, so a
+    // repeated failure does not chime on every retry.
+    if (announced && !options?.silent) {
+      playAlertSound();
+      Haptics.notificationAsync(
+        tone === 'success'
+          ? Haptics.NotificationFeedbackType.Success
+          : tone === 'info'
+            ? Haptics.NotificationFeedbackType.Warning
+            : Haptics.NotificationFeedbackType.Error,
+      ).catch(() => {});
+    }
     clearTimer();
-    timer.current = setTimeout(() => setToast(null), VISIBLE_MS);
+    timer.current = setTimeout(() => {
+      shownMessage.current = null;
+      setToast(null);
+    }, VISIBLE_MS);
   }, []);
 
   useEffect(() => clearTimer, []);
@@ -98,8 +128,10 @@ function ToastHost({ toast, onDismiss }: { toast: Toast | null; onDismiss: () =>
         entering={SlideInUp.duration(260)}
         exiting={SlideOutUp.duration(220)}
         style={[styles.toast, Shadow.lifted, { backgroundColor: theme.surface, borderColor: theme.line }]}>
-        <Ionicons name={ICONS[toast.tone]} size={17} color={accent} />
-        <Text variant="caption" style={styles.copy} numberOfLines={2}>
+        <View style={[styles.crest, { backgroundColor: theme.surfaceAlt }]}>
+          <Ionicons name={ICONS[toast.tone]} size={18} color={accent} />
+        </View>
+        <Text variant="body" style={styles.copy} numberOfLines={3}>
           {toast.message}
         </Text>
         {toast.onRetry ? (
@@ -134,14 +166,23 @@ export function useToast(): ToastContextValue {
 const styles = StyleSheet.create({
   host: { position: 'absolute', left: Spacing.md, right: Spacing.md, zIndex: 200, elevation: 40 },
   toast: {
-    minHeight: 44,
+    // Roomier than the pill it replaced: a two-line message was squeezed into
+    // 44dp with the text against the icon, and a third line was cut off.
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    borderRadius: Radius.pill,
+    gap: Spacing.md,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.base,
-    paddingVertical: 10,
+    paddingVertical: Spacing.md,
   },
-  copy: { flex: 1 },
+  crest: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  copy: { flex: 1, lineHeight: 21 },
 });

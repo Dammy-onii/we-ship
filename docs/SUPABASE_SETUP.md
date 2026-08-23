@@ -40,9 +40,38 @@ The identifiers do not have to equal the legal company name, App Store seller na
 
 The app asks notification permission only after the user taps **Profile → Notifications → Enable**. Android remote push requires a development/release build, not Expo Go.
 
+**Point the database at the dispatcher.** `dispatch-push` is called by database
+triggers on `personal_notifications` and `activity_events`. Those triggers look
+up where to send in `private.app_settings`, and do nothing at all while it is
+empty — which is why notifications were written to the database but never
+reached a phone. Run once, with your own project ref and the same secret you set
+as `PUSH_WEBHOOK_SECRET`:
+
+```sql
+insert into private.app_settings (key, value) values
+  ('push_endpoint', 'https://<project-ref>.supabase.co/functions/v1/dispatch-push'),
+  ('push_secret',   '<the same value as PUSH_WEBHOOK_SECRET>')
+on conflict (key) do update set value = excluded.value;
+```
+
+Nothing here is readable by `anon` or `authenticated`; `private.app_settings`
+has every privilege revoked from both.
+
 APNs is Apple's delivery network for iPhone notifications. Its credential is normally an Apple Push Notification signing key (`.p8`) plus its Key ID and Apple Team ID. FCM is Firebase Cloud Messaging, Google's delivery network for Android. Expo/EAS can manage both credentials with `eas credentials`; private key files must stay out of the app and repository.
 
 Android also needs the public Firebase client configuration file, `google-services.json`, for the final Android package. Add its path as `expo.android.googleServicesFile`. Separately upload the private FCM v1 service-account JSON to EAS under the Android push credentials.
+
+The two Firebase files are not equivalent and must be handled differently:
+
+| File | Contains | Where it goes | Committed? |
+| --- | --- | --- | --- |
+| `google-services.json` | Project number, app id, and an API key restricted to this package — all of which ship inside the APK anyway | Repository root, referenced by `expo.android.googleServicesFile` | **Yes.** EAS builds from the Git tree, so an ignored file is simply absent at build time and push silently fails to register |
+| FCM v1 service-account JSON | A private key that can send push as this project | `eas credentials` only | **Never.** Google scans public repositories and disables exposed keys |
+
+The Gradle edits Firebase's own console instructions describe — adding the
+`com.google.gms.google-services` plugin to both build files — are not done by
+hand. `expo prebuild` applies them from `googleServicesFile`, and `/android` is
+generated, so hand edits there are overwritten.
 
 ### Google Calendar and Drive — required
 

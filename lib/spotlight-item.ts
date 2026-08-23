@@ -1,4 +1,5 @@
 import type { CacheScope } from './media-cache';
+import { dayKeyForInstant, dayKeyIn, relativeDay } from './time';
 import type { FriendPost, Goodie } from './types';
 
 /**
@@ -81,4 +82,58 @@ export function friendPostToItem(post: FriendPost): SpotlightItem {
     // to upgrade to — the stored file is already the best copy available.
     source: 'friend',
   };
+}
+
+/** One dated heading in a gallery, with the posts that belong under it. */
+export type SpotlightDay = { key: string; title: string; items: SpotlightItem[] };
+
+/**
+ * How recent a post has to be to sit under "Today" rather than "Earlier today".
+ *
+ * Both headings describe the same calendar day; this only separates what has
+ * just arrived from what has been sitting there since the morning.
+ */
+const RECENT_HOURS = 6;
+
+/**
+ * Groups a gallery into dated sections.
+ *
+ * Previously everything that was not today fell under a single "Earlier"
+ * heading, so yesterday's post and one from three weeks ago read as equally
+ * recent. Each calendar day now gets its own heading — "Yesterday", "4 days
+ * ago", "Jul 12" — and "Earlier" is reserved for what it sounds like: earlier
+ * the same day.
+ */
+export function groupByDay(
+  items: SpotlightItem[],
+  timezone: string | undefined,
+  now = new Date(),
+): SpotlightDay[] {
+  const todayKey = dayKeyIn(timezone, now);
+  const recentCutoff = now.getTime() - RECENT_HOURS * 3_600_000;
+  const days = new Map<string, SpotlightItem[]>();
+
+  for (const item of items) {
+    const day = dayKeyForInstant(item.createdAt, timezone);
+    // Today alone is split in two, keyed so the fresh half sorts first.
+    const key =
+      day === todayKey && new Date(item.createdAt).getTime() < recentCutoff ? `${day}#earlier` : day;
+    const bucket = days.get(key);
+    if (bucket) bucket.push(item);
+    else days.set(key, [item]);
+  }
+
+  return [...days.entries()]
+    // Newest day first, and within today the fresh half above the older half.
+    .sort(([a], [b]) => (a.slice(0, 10) === b.slice(0, 10) ? a.length - b.length : a < b ? 1 : -1))
+    .map(([key, group]) => ({
+      key,
+      title:
+        key === todayKey
+          ? 'Today'
+          : key === `${todayKey}#earlier`
+            ? 'Earlier today'
+            : relativeDay(key, now),
+      items: group,
+    }));
 }

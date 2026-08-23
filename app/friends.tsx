@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useFriends } from '@/lib/friends';
@@ -165,9 +167,11 @@ function ContactMatches() {
   const { contactMatches, scanningContacts, scanContacts, addFriend } = useFriends();
   const [pendingId, setPendingId] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [needsSettings, setNeedsSettings] = useState(false);
 
   const scan = async () => {
     const result = await scanContacts();
+    setNeedsSettings(!result.ok && Boolean(result.canOpenSettings));
     setNotice(
       result.ok
         ? result.matches.length
@@ -182,7 +186,7 @@ function ContactMatches() {
     try {
       await addFriend(person.id);
     } catch (cause) {
-      Alert.alert('Could not send request', userFacingError(cause, 'Please try again.'));
+      showDialog('Could not send request', userFacingError(cause, 'Please try again.'));
     } finally {
       setPendingId(undefined);
     }
@@ -200,6 +204,7 @@ function ContactMatches() {
       </Text>
 
       <Button
+        loading={scanningContacts}
         label={scanningContacts ? 'Checking…' : contactMatches.length ? 'Check again' : 'Find friends in contacts'}
         variant="soft"
         full
@@ -215,6 +220,18 @@ function ContactMatches() {
         </Text>
       ) : null}
 
+      {/* A permission the user has permanently denied cannot be re-requested
+          from inside the app, so the only useful control is a way out to it. */}
+      {needsSettings ? (
+        <Button
+          label="Open Settings"
+          variant="ghost"
+          full
+          onPress={() => Linking.openSettings()}
+          style={{ marginTop: Spacing.xs }}
+        />
+      ) : null}
+
       {connectable.length ? (
         <View style={styles.list}>
           {connectable.map((person) => (
@@ -223,6 +240,7 @@ function ContactMatches() {
               person={person}
               action={
                 <Button
+                  loading={pendingId === person.id}
                   label={pendingId === person.id ? 'Sending…' : 'Add'}
                   size="sm"
                   variant="soft"
@@ -288,7 +306,7 @@ function PeopleSearch() {
         }));
         Keyboard.dismiss();
       } catch (cause) {
-        Alert.alert('Could not send request', userFacingError(cause, 'Please try again.'));
+        showDialog('Could not send request', userFacingError(cause, 'Please try again.'));
       } finally {
         setPendingId(undefined);
       }
@@ -333,7 +351,8 @@ function PeopleSearch() {
                 action={
                   person.status === 'none' ? (
                     <Button
-                      label={pendingId === person.id ? 'Sending…' : 'Add'}
+                      loading={pendingId === person.id}
+                  label={pendingId === person.id ? 'Sending…' : 'Add'}
                       size="sm"
                       variant="soft"
                       disabled={pendingId === person.id}
@@ -382,7 +401,7 @@ function RequestRow({
     try {
       await operation();
     } catch (cause) {
-      Alert.alert(failure, userFacingError(cause, 'Please try again.'));
+      showDialog(failure, userFacingError(cause, 'Please try again.'));
     } finally {
       setBusy(false);
     }
@@ -424,43 +443,44 @@ function RequestRow({
 
 function FriendRow({ person }: { person: PersonSummary }) {
   const theme = useTheme();
-  const { unfriend } = useFriends();
+  const router = useRouter();
 
-  const confirmRemove = () => {
-    Alert.alert(
-      `Remove ${person.displayName}?`,
-      'You will stop seeing each other’s friend board posts.',
-      [
-        { text: 'Keep', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            unfriend(person.id).catch((cause: unknown) =>
-              Alert.alert('Could not remove', userFacingError(cause, 'Please try again.')),
-            );
-          },
-        },
-      ],
-    );
-  };
+  /*
+   * Opens the friend's own page.
+   *
+   * This control used to raise a native action sheet — a system dialog with a
+   * name, a handle, and "Remove friend" as its second line. There was nowhere
+   * to see who the person actually was.
+   */
+  const open = () => router.push({ pathname: '/friend/[id]', params: { id: person.id } });
 
   return (
     <PersonRow
       person={person}
-      action={
-        <Pressable onPress={confirmRemove} hitSlop={10} accessibilityLabel={`Remove ${person.displayName}`}>
-          <Ionicons name="ellipsis-horizontal" size={20} color={theme.textFaint} />
-        </Pressable>
-      }
+      onPress={open}
+      action={<Ionicons name="chevron-forward" size={20} color={theme.textFaint} />}
     />
   );
 }
 
-function PersonRow({ person, action }: { person: PersonSummary; action?: React.ReactNode }) {
+function PersonRow({
+  person,
+  action,
+  onPress,
+}: {
+  person: PersonSummary;
+  action?: React.ReactNode;
+  /** Makes the whole row — avatar included — open the person. */
+  onPress?: () => void;
+}) {
   const theme = useTheme();
+  const Row = onPress ? Pressable : View;
   return (
-    <View style={[styles.personRow, { borderColor: theme.line }]}>
+    <Row
+      onPress={onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `Open ${person.displayName}'s profile` : undefined}
+      style={[styles.personRow, { borderColor: theme.line }]}>
       <Avatar name={person.displayName} uri={person.photoUri} size={44} />
       <View style={styles.personText}>
         <Text variant="bodyStrong" numberOfLines={1}>
@@ -473,7 +493,7 @@ function PersonRow({ person, action }: { person: PersonSummary; action?: React.R
         ) : null}
       </View>
       {action}
-    </View>
+    </Row>
   );
 }
 

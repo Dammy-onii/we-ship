@@ -1,59 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The list form of the 2do widget.
+
+  It used to show exactly one task, which made a shared list of five look like a
+  list of one. The header keeps the count, and the rows below scroll.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/weship_widget_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:background="@drawable/weship_widget_background"
-  android:gravity="center_vertical"
   android:orientation="vertical"
-  android:padding="16dp">
+  android:paddingStart="16dp"
+  android:paddingEnd="16dp"
+  android:paddingTop="14dp"
+  android:paddingBottom="10dp">
 
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
-    android:orientation="horizontal">
-
-    <ImageView
-      android:id="@+id/weship_widget_status"
-      android:layout_width="18dp"
-      android:layout_height="18dp"
-      android:contentDescription="@string/weship_todo_widget_status"
-      android:src="@drawable/weship_widget_open_circle" />
+    android:orientation="horizontal"
+    android:baselineAligned="false">
 
     <TextView
-      android:layout_width="wrap_content"
+      android:layout_width="0dp"
+      android:layout_weight="1"
       android:layout_height="wrap_content"
-      android:layout_marginStart="7dp"
       android:fontFamily="sans-serif-medium"
       android:letterSpacing="0.08"
       android:text="@string/weship_todo_widget_label"
       android:textColor="@color/weship_widget_secondary"
       android:textSize="11sp" />
+
+    <TextView
+      android:id="@+id/weship_widget_progress"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:fontFamily="sans-serif-medium"
+      android:textColor="@color/weship_widget_accent"
+      android:textSize="11sp" />
   </LinearLayout>
 
-  <TextView
-    android:id="@+id/weship_widget_task"
+  <ListView
+    android:id="@+id/weship_widget_list"
     android:layout_width="match_parent"
     android:layout_height="0dp"
-    android:layout_marginTop="9dp"
     android:layout_weight="1"
-    android:ellipsize="end"
-    android:fontFamily="sans-serif-medium"
-    android:gravity="bottom"
-    android:maxLines="2"
-    android:text="@string/weship_todo_widget_empty"
-    android:textColor="@color/weship_widget_text"
-    android:textSize="19sp" />
+    android:layout_marginTop="8dp"
+    android:divider="@null"
+    android:dividerHeight="0dp"
+    android:scrollbars="none" />
 
   <TextView
-    android:id="@+id/weship_widget_routine"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="5dp"
+    android:id="@+id/weship_widget_empty"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:gravity="center"
     android:fontFamily="sans-serif-medium"
-    android:text="@string/weship_todo_widget_open"
-    android:textColor="@color/weship_widget_secondary"
-    android:textSize="11sp" />
+    android:text="@string/weship_todo_widget_empty"
+    android:textColor="@color/weship_widget_text"
+    android:textSize="17sp"
+    android:visibility="gone" />
 </LinearLayout>
-

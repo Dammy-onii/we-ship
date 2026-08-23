@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { type Href, useRouter } from 'expo-router';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
+import { useToast } from '@/components/ui/toast';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -22,6 +24,7 @@ import {
   useTodayQuestion,
 } from '@/lib/store';
 import { relativeDay } from '@/lib/time';
+import type { FriendRequest } from '@/lib/types';
 import { userFacingError } from '@/lib/user-facing-error';
 
 type Activity = {
@@ -45,7 +48,7 @@ export default function NotificationsScreen() {
   const { nudges } = useNudges();
   const { question } = useTodayQuestion();
   const sync = useBackendStatus();
-  const { notifications, markNotificationsRead } = useFriends();
+  const { notifications, markNotificationsRead, incoming, accept, decline } = useFriends();
   const [liveActivities, setLiveActivities] = useState<Activity[]>();
   const [activityError, setActivityError] = useState<string>();
 
@@ -75,13 +78,33 @@ export default function NotificationsScreen() {
     Promise.resolve().then(() => { if (active) return loadActivities(); });
     if (sync.mode !== 'live') return () => { active = false; };
     const channel = repository.subscribeToNotifications(() => loadActivities());
-    markNotificationsRead().catch(() => {});
     repository.markPartnerNudgesSeen().catch(() => {});
     return () => {
       active = false;
       channel.unsubscribe();
     };
-  }, [loadActivities, markNotificationsRead, sync.mode]);
+  }, [loadActivities, sync.mode]);
+
+  /*
+   * Marking read is tied to *focus*, not to mount or unmount.
+   *
+   * This is a drawer screen, so it stays mounted after the user navigates away
+   * — an unmount cleanup would never run, and the badge would never clear.
+   * Mounting is not the right moment either: it fires before anything is on
+   * screen. So: a beat after the screen is actually looked at, and again when
+   * it loses focus, which catches anything that arrived while it was open.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
+        markNotificationsRead().catch(() => {});
+      }, 600);
+      return () => {
+        clearTimeout(timer);
+        markNotificationsRead().catch(() => {});
+      };
+    }, [markNotificationsRead]),
+  );
 
   const derivedActivities: Activity[] = [
     ...nudges
@@ -163,6 +186,20 @@ export default function NotificationsScreen() {
         </View>
       </View>
 
+      {incoming.length ? (
+        <View style={styles.requests}>
+          <Text variant="micro" color="textFaint">FRIEND REQUESTS</Text>
+          {incoming.map((request) => (
+            <FriendRequestCard
+              key={request.id}
+              request={request}
+              onAccept={() => accept(request.id)}
+              onDecline={() => decline(request.id)}
+            />
+          ))}
+        </View>
+      ) : null}
+
       <View style={[styles.list, { borderTopColor: theme.line, borderBottomColor: theme.line }]}>
         {sync.mode === 'live' && liveActivities === undefined ? (
           <DataState loading title="Loading recent activity" />
@@ -199,6 +236,72 @@ export default function NotificationsScreen() {
   );
 }
 
+/**
+ * An incoming friend request, answerable where it is seen.
+ *
+ * Requests previously only appeared as a line in this list that pushed to the
+ * friends screen, so there was nothing here that read as a prompt.
+ */
+function FriendRequestCard({
+  request,
+  onAccept,
+  onDecline,
+}: {
+  request: FriendRequest;
+  onAccept: () => Promise<void>;
+  onDecline: () => Promise<void>;
+}) {
+  const theme = useTheme();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const run = async (action: () => Promise<void>, failure: string) => {
+    setBusy(true);
+    try {
+      await action();
+    } catch (error) {
+      toast.show(userFacingError(error, failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={[styles.request, { backgroundColor: theme.surface, borderColor: theme.line }]}>
+      <View style={styles.requestHead}>
+        <Avatar
+          name={request.person.displayName}
+          seed={request.person.id}
+          uri={request.person.photoUri}
+          size={44}
+        />
+        <View style={{ flex: 1 }}>
+          <Text variant="bodyStrong">{request.person.displayName}</Text>
+          <Text variant="caption" color="textFaint">
+            {request.person.username ? `@${request.person.username}` : 'wants to connect'}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.requestActions}>
+        <Button
+          label="Decline"
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onPress={() => run(onDecline, 'Could not decline this request.')}
+        />
+        <Button
+          loading={busy}
+          label={busy ? 'Working…' : 'Accept'}
+          size="sm"
+          disabled={busy}
+          onPress={() => run(onAccept, 'Could not accept this request.')}
+        />
+      </View>
+    </View>
+  );
+}
+
 function activityIcon(kind: string): React.ComponentProps<typeof Ionicons>['name'] {
   if (kind.includes('task')) return 'checkbox-outline';
   if (kind.includes('goodie')) return 'gift-outline';
@@ -226,6 +329,15 @@ function goodieIcon(kind: 'photo' | 'video' | 'voice' | 'note' | 'reminder') {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.xl },
+  requests: { gap: Spacing.sm },
+  request: {
+    borderRadius: Radius.inset,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  requestHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  requestActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm },
   intro: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   list: {
     marginHorizontal: -Spacing.lg,

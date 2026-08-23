@@ -1,9 +1,31 @@
 import { json } from '../_shared/cors.ts';
 import { service } from '../_shared/server.ts';
 
+/**
+ * The secret the database trigger is expected to present.
+ *
+ * Read from `private.app_settings`, which the migration seeds with a random
+ * value, so nobody has to copy a secret between two consoles. `PUSH_WEBHOOK_SECRET`
+ * still wins when set, for deployments that would rather manage it themselves.
+ *
+ * Cached for the lifetime of the isolate: this runs on every notification, and
+ * a round trip to Postgres just to authenticate one is wasteful.
+ */
+let cachedSecret: string | null | undefined;
+
+async function expectedSecret(): Promise<string | null> {
+  const fromEnv = Deno.env.get('PUSH_WEBHOOK_SECRET');
+  if (fromEnv) return fromEnv;
+  if (cachedSecret !== undefined) return cachedSecret;
+  // Through an RPC rather than a select: `private` is not exposed to PostgREST.
+  const { data, error } = await service.rpc('push_dispatch_secret');
+  cachedSecret = error ? null : ((data as string | null) ?? null);
+  return cachedSecret;
+}
+
 Deno.serve(async (request) => {
   try {
-    const configuredSecret = Deno.env.get('PUSH_WEBHOOK_SECRET');
+    const configuredSecret = await expectedSecret();
     if (!configuredSecret || !(await equalSecret(request.headers.get('x-weship-secret') ?? '', configuredSecret))) return json({ error: 'Unauthorized' }, 401);
     const payload = await request.json();
     const activity = payload.record ?? payload;

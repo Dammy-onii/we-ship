@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Text } from '@/components/ui/text';
-import { Shadow, Spacing } from '@/constants/theme';
+import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useFriends } from '@/lib/friends';
 import { useMe, useNudges } from '@/lib/store';
@@ -36,6 +36,34 @@ export function AppHeader({ title, subtitle, action }: HeaderProps) {
         {action}
         <View style={styles.titleSpace} />
       </View>
+    </View>
+  );
+}
+
+/**
+ * The drawer handle pinned to the left edge of every screen.
+ *
+ * The drawer was previously reachable only by an edge swipe or by the hamburger
+ * on the few screens that show a header, which left most of the app with no
+ * visible way into it. Rendered through the Drawer's `screenLayout`, so it sits
+ * inside the navigator on every screen without each screen having to add it.
+ */
+export function EdgeMenuButton({ onPress }: { onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <View pointerEvents="box-none" style={styles.edgeMenu}>
+      <Pressable
+        onPress={onPress}
+        hitSlop={{ top: 12, bottom: 12, left: 6, right: 12 }}
+        accessibilityRole="button"
+        accessibilityLabel="Open menu"
+        style={({ pressed }) => [
+          styles.edgeMenuButton,
+          { backgroundColor: theme.surface, borderColor: theme.line },
+          pressed && { opacity: 0.7 },
+        ]}>
+        <Ionicons name="menu" size={16} color={theme.primaryDeep} />
+      </Pressable>
     </View>
   );
 }
@@ -176,6 +204,29 @@ const styles = StyleSheet.create({
   bellCompact: { width: 32, height: 32, borderRadius: 16 },
   dot: { position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 5, borderWidth: 1.5 },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  edgeMenu: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    zIndex: 40,
+    elevation: 18,
+  },
+  edgeMenuButton: {
+    // Deliberately slim. It floats over whatever screen is beneath it, and
+    // every pixel of width is a pixel of someone's content it covers.
+    width: 24,
+    height: 46,
+    // Flat against the screen edge, rounded on the side that faces content.
+    borderTopRightRadius: Radius.chip,
+    borderBottomRightRadius: Radius.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 0,
+    ...Shadow.subtle,
+  },
 });
 
 /**

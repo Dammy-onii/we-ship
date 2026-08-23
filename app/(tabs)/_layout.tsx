@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Redirect, useRouter, useSegments } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { useMemo } from 'react';
 import { View, type ColorValue } from 'react-native';
@@ -30,6 +30,7 @@ function makeIcon(Art: ArtIcon, name: string) {
 
 export default function TabLayout() {
   const sync = useBackendStatus();
+
   const theme = useTheme();
   const router = useRouter();
   const segments = useSegments();
@@ -84,11 +85,9 @@ export default function TabLayout() {
     );
   }
 
-  // A signed-in user with no Space cannot do anything meaningful here, and
-  // writes would be discarded — send them to create or join one first.
-  if (sync.mode === 'live' && !sync.initialLoading && !sync.paired) {
-    return <Redirect href="/pairing" />;
-  }
+  // No redirect for an unpaired account. Everything that does not need a
+  // partner — friends, your profile, notifications — works without one, and
+  // Home explains what pairing unlocks instead of the app refusing to open.
 
   return (
     <View style={styles.fill}>

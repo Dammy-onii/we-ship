@@ -200,12 +200,23 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     }
   }, [enabled]);
 
+  /*
+   * Stable on purpose — no `notifications` dependency.
+   *
+   * Callers key focus effects off this function, and an identity that changed
+   * every time a notification arrived re-ran those effects in a loop. The cost
+   * is one UPDATE that matches no rows when there is nothing unread, which is
+   * cheaper than the churn was.
+   */
   const markNotificationsRead = useCallback(async () => {
-    if (!notifications.some((item) => !item.readAt)) return;
     await markPersonalNotificationsRead();
     const now = new Date().toISOString();
-    setNotifications((current) => current.map((item) => item.readAt ? item : { ...item, readAt: now }));
-  }, [notifications]);
+    setNotifications((current) =>
+      current.some((item) => !item.readAt)
+        ? current.map((item) => (item.readAt ? item : { ...item, readAt: now }))
+        : current,
+    );
+  }, []);
 
   const unreadNotifications = useMemo(
     () => notifications.filter((item) => !item.readAt).length,

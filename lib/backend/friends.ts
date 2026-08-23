@@ -307,6 +307,27 @@ export async function setUsername(username: string): Promise<string> {
   return data as string;
 }
 
+/** A friend's own page: who they are, and how the two of you are connected. */
+export type FriendProfile = PersonSummary & {
+  gender?: string;
+  /** Whether they share a space with a partner. Never who that partner is. */
+  paired: boolean;
+  friendsSince: string;
+};
+
+export async function fetchFriendProfile(personId: string): Promise<FriendProfile | null> {
+  const { data, error } = await requireSupabase().rpc('get_friend_profile', { target: personId });
+  fail(error);
+  const row = ((data ?? []) as AnyRow[])[0];
+  if (!row) return null;
+  return {
+    ...(await toPerson(row, 'friends')),
+    gender: row.gender ?? undefined,
+    paired: row.paired === true,
+    friendsSince: row.friends_since,
+  };
+}
+
 async function upload(path: string, uri: string, mimeType: string) {
   const payload = await readLocalFileBytes(uri);
   const { error } = await requireSupabase()

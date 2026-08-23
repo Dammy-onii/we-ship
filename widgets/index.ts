@@ -24,3 +24,8 @@ export async function drainWidgetActions(): Promise<
 > {
   return [];
 }
+
+/** In-widget button presses. Never fires on web. */
+export function onWidgetInteraction(_handler: (target: string) => void): () => void {
+  return () => {};
+}

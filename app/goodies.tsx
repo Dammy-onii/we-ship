@@ -1,20 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  useAudioPlayer,
-  useAudioPlayerStatus,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from 'expo-audio';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
-  Alert,
   Keyboard,
   Platform,
   Pressable,
@@ -23,19 +13,20 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardAvoider } from '@/components/ui/keyboard-avoider';
+import { VoiceRecorder } from '@/components/voice-recorder';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { VoicePlayer } from '@/components/voice-player';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useNativePickerAction } from '@/hooks/use-native-picker';
-import { enterPlaybackMode, enterRecordingMode } from '@/lib/audio-mode';
 import { useGoodies, useUser, YOU_ID } from '@/lib/store';
 import type { Goodie, GoodieKind } from '@/lib/types';
 
@@ -46,11 +37,6 @@ const SEND_TYPES: { kind: GoodieKind; label: string; icon: React.ComponentProps<
   { kind: 'note', label: 'Note', icon: 'document-text-outline' },
   { kind: 'reminder', label: 'Reminder', icon: 'alarm-outline' },
 ];
-
-const VOICE_RECORDING_OPTIONS = {
-  ...RecordingPresets.HIGH_QUALITY,
-  isMeteringEnabled: true,
-};
 
 export default function GoodiesScreen() {
   const theme = useTheme();
@@ -77,7 +63,13 @@ export default function GoodiesScreen() {
         </View>
 
         <GoodieComposer
-          initialKind={composer === 'voice' ? 'voice' : 'photo'}
+          // Every kind the Quick send widget can deep-link to, not just voice —
+          // an unrecognised value used to land silently on the photo composer.
+          initialKind={
+            SEND_TYPES.some((type) => type.kind === composer)
+              ? (composer as GoodieKind)
+              : 'photo'
+          }
           autoStartRequest={composer === 'voice' ? record : undefined}
         />
 
@@ -109,30 +101,21 @@ function GoodieComposer({
   const [kind, setKind] = useState<GoodieKind>(initialKind);
   const [text, setText] = useState('');
   const [mediaAsset, setMediaAsset] = useState<ImagePicker.ImagePickerAsset>();
-  const [recordedUri, setRecordedUri] = useState<string>();
-  const [recordedDuration, setRecordedDuration] = useState(0);
   const [sending, setSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [reminderAt, setReminderAt] = useState(() => new Date(Date.now() + 60 * 60 * 1000));
   const [showReminderPicker, setShowReminderPicker] = useState(false);
-  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
-  const recorderState = useAudioRecorderState(recorder, 100);
-  const captureAutoStop = useRef(false);
-  const autoStartHandled = useRef<string | undefined>(undefined);
   const runPicker = useNativePickerAction();
 
   const selectKind = (next: GoodieKind) => {
-    if (recorderState.isRecording) return;
     setKind(next);
     setMediaAsset(undefined);
-    setRecordedUri(undefined);
-    setRecordedDuration(0);
   };
 
   const pickMedia = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Photos permission needed', 'Allow photo access to choose something for your partner.');
+      showDialog('Photos permission needed', 'Allow photo access to choose something for your partner.');
       return;
     }
     const result = await runPicker(() =>
@@ -145,87 +128,21 @@ function GoodieComposer({
     if (!result.canceled) setMediaAsset(result.assets[0]);
   };
 
-  const startRecording = useCallback(async () => {
-    const permission = await requestRecordingPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Microphone permission needed', 'Allow microphone access to record a voice note.');
-      return;
-    }
-    setRecordedUri(undefined);
-    setRecordedDuration(0);
-    await enterRecordingMode();
-    await recorder.prepareToRecordAsync();
-    captureAutoStop.current = true;
-    recorder.record({ forDuration: 120 });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-  }, [recorder]);
-
-  useEffect(() => {
-    if (!autoStartRequest || autoStartHandled.current === autoStartRequest) return;
-    autoStartHandled.current = autoStartRequest;
-    startRecording().catch(() => {
-      Alert.alert('Recording unavailable', 'The voice recorder could not start. Please tap the mic to try again.');
-    });
-  }, [autoStartRequest, startRecording]);
-
-  /** Cancels an in-progress recording, or clears one already captured. */
-  const discardRecording = async () => {
-    captureAutoStop.current = false;
-    if (recorderState.isRecording) {
-      try {
-        await recorder.stop();
-      } catch {
-        // Already stopped — clearing the state below is still correct.
-      }
-    }
-    setRecordedUri(undefined);
-    setRecordedDuration(0);
-    await enterPlaybackMode();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-  };
-
-  const toggleRecording = async () => {
-    if (!recorderState.isRecording) {
-      await startRecording();
-      return;
-    }
-
-    const duration = recorderState.durationMillis;
-    captureAutoStop.current = false;
-    await recorder.stop();
-    setRecordedUri(recorder.uri ?? undefined);
-    setRecordedDuration(Math.max(1, Math.round(duration / 1000)));
-    await enterPlaybackMode();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  };
-
-  // A capped recording stops itself inside the native recorder. Preserve the
-  // resulting URI when that state transition arrives instead of resetting the
-  // composer to an empty recording.
-  useEffect(() => {
-    if (recorderState.isRecording || !captureAutoStop.current || !recorder.uri) return;
-    captureAutoStop.current = false;
-    setRecordedUri(recorder.uri);
-    setRecordedDuration(Math.max(1, Math.round(recorderState.durationMillis / 1000) || 120));
-    enterPlaybackMode().catch(() => {});
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  }, [recorder.uri, recorderState.durationMillis, recorderState.isRecording]);
-
   const canSend =
-    (kind === 'voice' && Boolean(recordedUri)) ||
     ((kind === 'photo' || kind === 'video') && Boolean(mediaAsset)) ||
     ((kind === 'note' || kind === 'reminder') && Boolean(text.trim()));
 
-  const send = async () => {
-    if (!canSend || sending) return;
+  /** Voice notes are sent from the recorder itself, so they carry their own take. */
+  const send = async (voice?: { uri: string; durationSeconds: number }) => {
+    if ((!canSend && !voice) || sending) return;
     setSending(true);
     setUploadProgress(0);
     try {
       await addGoodie({
         kind,
         text: text.trim() || undefined,
-        uri: kind === 'voice' ? recordedUri : mediaAsset?.uri,
-        durationSeconds: kind === 'voice' ? recordedDuration : undefined,
+        uri: voice ? voice.uri : mediaAsset?.uri,
+        durationSeconds: voice?.durationSeconds,
         fileName: mediaAsset?.fileName,
         mimeType: mediaAsset?.mimeType,
         sizeBytes: mediaAsset?.fileSize,
@@ -236,11 +153,9 @@ function GoodieComposer({
       });
       setText('');
       setMediaAsset(undefined);
-      setRecordedUri(undefined);
-      setRecordedDuration(0);
       Keyboard.dismiss();
     } catch (error) {
-      Alert.alert('Could not send Goodie', userFacingError(error, 'Please try again.'));
+      showDialog('Could not send Goodie', userFacingError(error, 'Please try again.'));
     } finally {
       setSending(false);
       setUploadProgress(0);
@@ -292,67 +207,11 @@ function GoodieComposer({
       ) : null}
 
       {kind === 'voice' ? (
-        <View style={[styles.voiceComposer, { backgroundColor: theme.surfaceAlt }]}>
-          {/* Status first, then the waveform, then controls — the old row put
-              the button, meter and text side by side and read as clutter. */}
-          <View style={styles.voiceStatus}>
-            <Text variant="bodyStrong">
-              {recorderState.isRecording
-                ? 'Recording…'
-                : recordedUri
-                  ? 'Ready to send'
-                  : 'Record a voice note'}
-            </Text>
-            <Text variant="micro" color="textFaint">
-              {formatDuration(
-                recorderState.isRecording ? recorderState.durationMillis / 1000 : recordedDuration,
-              )}
-              {recorderState.isRecording ? ' · MAX 2:00' : recordedUri ? '' : ' · UP TO 2 MINUTES'}
-            </Text>
-          </View>
-
-          <RecordingWaveform active={recorderState.isRecording} metering={recorderState.metering} />
-
-          <View style={styles.voiceControls}>
-            {/* Discard is always reachable once there is something to lose. */}
-            {recorderState.isRecording || recordedUri ? (
-              <Pressable
-                onPress={discardRecording}
-                accessibilityRole="button"
-                accessibilityLabel={recorderState.isRecording ? 'Cancel recording' : 'Delete voice note'}
-                style={({ pressed }) => [
-                  styles.voiceSecondary,
-                  { borderColor: theme.line },
-                  pressed && { opacity: 0.6 },
-                ]}>
-                <Ionicons name="close" size={20} color={theme.textSoft} />
-              </Pressable>
-            ) : (
-              <View style={styles.voiceSecondarySpacer} />
-            )}
-
-            <Pressable
-              onPress={toggleRecording}
-              accessibilityRole="button"
-              accessibilityLabel={recorderState.isRecording ? 'Stop recording' : 'Start recording'}
-              style={[
-                styles.recordButton,
-                { backgroundColor: recorderState.isRecording ? theme.bloom : theme.primary },
-              ]}>
-              <Ionicons
-                name={recorderState.isRecording ? 'stop' : 'mic'}
-                size={28}
-                color={theme.onPrimary}
-              />
-            </Pressable>
-
-            {recordedUri && !recorderState.isRecording ? (
-              <VoiceButton uri={recordedUri} />
-            ) : (
-              <View style={styles.voiceSecondarySpacer} />
-            )}
-          </View>
-        </View>
+        <VoiceRecorder
+          sending={sending}
+          autoStartRequest={autoStartRequest}
+          onSend={(uri, durationSeconds) => send({ uri, durationSeconds })}
+        />
       ) : null}
 
       {kind !== 'voice' ? (
@@ -397,13 +256,16 @@ function GoodieComposer({
         </>
       ) : null}
 
-      <Button
-        label={sending ? `Uploading ${Math.round(uploadProgress * 100)}%` : 'Send to today'}
-        icon={<Ionicons name="send" size={17} color={theme.onPrimary} />}
-        onPress={send}
-        disabled={!canSend || sending}
-        full
-      />
+      {kind === 'voice' ? null : (
+        <Button
+          loading={sending}
+          label={sending ? `Uploading ${Math.round(uploadProgress * 100)}%` : 'Send to today'}
+          icon={<Ionicons name="send" size={17} color={theme.onPrimary} />}
+          onPress={() => send()}
+          disabled={!canSend || sending}
+          full
+        />
+      )}
     </View>
   );
 }
@@ -416,6 +278,34 @@ function GoodieRow({ goodie, separated }: { goodie: Goodie; separated: boolean }
   const type = SEND_TYPES.find((item) => item.kind === goodie.kind)!;
 
   const isDriveMedia = (goodie.kind === 'photo' || goodie.kind === 'video') && goodie.originalAvailable;
+  const meta = (
+    <Text variant="caption" color="textFaint">
+      {mine ? 'You' : author.displayName} · {type.label}
+      {goodie.reminderAt ? ` · ${new Date(goodie.reminderAt).toLocaleString()}` : ''}
+    </Text>
+  );
+
+  // Voice takes the full width of the row: a waveform squeezed beside a caption
+  // and an avatar is too small to read a playhead in.
+  if (goodie.kind === 'voice') {
+    return (
+      <View
+        style={[
+          styles.voiceRow,
+          separated && { borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth },
+        ]}>
+        <View style={styles.voiceHead}>
+          <Avatar name={author.displayName} seed={author.photoSeed} uri={author.photoUri} ring={author.color} size={30} />
+          <View style={{ flex: 1 }}>
+            {goodie.text ? <Text variant="bodyStrong">{goodie.text}</Text> : null}
+            {meta}
+          </View>
+        </View>
+        <VoicePlayer uri={goodie.uri} seconds={goodie.durationSeconds} />
+      </View>
+    );
+  }
+
   const content = (
     <View style={[styles.goodieRow, separated && { borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth }]}>
       {goodie.kind === 'photo' || goodie.kind === 'video' ? (
@@ -431,8 +321,6 @@ function GoodieRow({ goodie, separated }: { goodie: Goodie; separated: boolean }
             <Ionicons name="image-outline" size={24} color={theme.primaryDeep} />
           </View>
         )
-      ) : goodie.kind === 'voice' ? (
-        <VoiceButton uri={goodie.uri} />
       ) : (
         <View style={[styles.goodieIcon, { backgroundColor: theme.surfaceAlt }]}>
           <Ionicons name={type.icon} size={20} color={theme.textSoft} />
@@ -440,11 +328,7 @@ function GoodieRow({ goodie, separated }: { goodie: Goodie; separated: boolean }
       )}
       <View style={styles.goodieCopy}>
         <Text variant="bodyStrong">{goodie.text || type.label}</Text>
-        <Text variant="caption" color="textFaint">
-          {mine ? 'You' : author.displayName} · {type.label}
-          {goodie.durationSeconds ? ` · ${formatDuration(goodie.durationSeconds)}` : ''}
-          {goodie.reminderAt ? ` · ${new Date(goodie.reminderAt).toLocaleString()}` : ''}
-        </Text>
+        {meta}
       </View>
       <Avatar name={author.displayName} seed={author.photoSeed} uri={author.photoUri} ring={author.color} size={30} />
     </View>
@@ -467,79 +351,6 @@ function GoodieRow({ goodie, separated }: { goodie: Goodie; separated: boolean }
       {content}
     </Pressable>
   );
-}
-
-function VoiceButton({ uri }: { uri?: string }) {
-  const theme = useTheme();
-  const player = useAudioPlayer(uri ?? null);
-  const status = useAudioPlayerStatus(player);
-
-  return (
-    <Pressable
-      disabled={!uri}
-      accessibilityRole="button"
-      accessibilityLabel={status.playing ? 'Pause voice note' : 'Play voice note'}
-      onPress={async () => {
-        if (!uri) return;
-        try {
-          await enterPlaybackMode();
-          if (status.playing) {
-            player.pause();
-            return;
-          }
-          if (status.didJustFinish || (status.duration > 0 && status.currentTime >= status.duration)) {
-            await player.seekTo(0);
-          }
-          player.play();
-        } catch {
-          Alert.alert('Playback unavailable', 'This voice note could not be played on this device.');
-        }
-      }}
-      style={[styles.goodieIcon, { backgroundColor: theme.partnerSoft, opacity: uri ? 1 : 0.75 }]}>
-      <Ionicons
-        name={!uri ? 'mic-outline' : status.playing ? 'pause' : 'play'}
-        size={20}
-        color={theme.partner}
-      />
-    </Pressable>
-  );
-}
-
-function RecordingWaveform({ active, metering }: { active: boolean; metering?: number }) {
-  const level = active
-    ? Math.max(0.08, Math.min(1, ((metering ?? -54) + 60) / 60))
-    : 0.08;
-
-  return (
-    <View style={styles.waveform} accessibilityElementsHidden>
-      {[0.55, 0.85, 1, 0.72, 0.95].map((weight, index) => (
-        <MeterBar key={index} level={level * weight} active={active} />
-      ))}
-    </View>
-  );
-}
-
-function MeterBar({ level, active }: { level: number; active: boolean }) {
-  const theme = useTheme();
-  const animatedStyle = useAnimatedStyle(
-    () => ({ height: withTiming(6 + level * 27, { duration: 90 }) }),
-    [level],
-  );
-
-  return (
-    <Animated.View
-      style={[
-        styles.meterBar,
-        { backgroundColor: active ? theme.bloom : theme.lineStrong },
-        animatedStyle,
-      ]}
-    />
-  );
-}
-
-function formatDuration(seconds: number) {
-  const safe = Math.max(0, Math.round(seconds));
-  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
 }
 
 const styles = StyleSheet.create({
@@ -596,6 +407,8 @@ const styles = StyleSheet.create({
   meterBar: { width: 3, borderRadius: 2 },
   voiceCopy: { flex: 1, gap: 4 },
   feed: { borderTopWidth: StyleSheet.hairlineWidth },
+  voiceRow: { paddingVertical: Spacing.md, gap: Spacing.sm },
+  voiceHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   goodieRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
   goodieMedia: { width: 58, height: 58, borderRadius: Radius.chip, alignItems: 'center', justifyContent: 'center' },
   mediaPlay: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(20,20,20,0.58)' },

@@ -64,11 +64,20 @@ export function syncWidgetSnapshot(snapshot: WidgetSnapshot) {
     slides: JSON.stringify(snapshot.partnerSlides),
     title: 'Us',
     deepLink: 'weship://spotlight',
+    offset: snapshot.carouselOffset.partner,
+    emptyTitle: 'Nothing shared yet',
+    emptyBody: 'Send a photo or a note and it will appear here for both of you.',
+    emptyLink: 'weship://goodies',
   });
   push(() => require('./FriendsCarouselWidget'), {
     slides: JSON.stringify(snapshot.friendSlides),
     title: 'Friends',
     deepLink: 'weship://friend-spotlight',
+    offset: snapshot.carouselOffset.friends,
+    // The empty state is the one action that fixes it, so it opens the finder.
+    emptyTitle: 'No friends here yet',
+    emptyBody: 'Find people you already know and their posts will show up here.',
+    emptyLink: 'weship://friends',
   });
   if (snapshot.presence) {
     push(() => require('./PresenceWidget'), {
@@ -78,16 +87,16 @@ export function syncWidgetSnapshot(snapshot: WidgetSnapshot) {
       statusText: snapshot.presence.statusText ?? '',
       // Empty on purpose for same-timezone couples: their clock is your clock.
       localTime: snapshot.presence.localTime ?? '',
+      lastExchange: snapshot.presence.lastExchange,
+      pendingTask: snapshot.presence.pendingTask,
+      streak: snapshot.streak?.count ?? 0,
       lastSeen: snapshot.presence.lastSeen,
     });
-    push(() => require('./NudgeWidget'), {
-      partnerName: snapshot.presence.name,
-      justSent: false,
-    });
   }
-  if (snapshot.streak) {
-    push(() => require('./StreakQuestionWidget'), snapshot.streak);
-  }
+  push(() => require('./QuickSendWidget'), {
+    partnerName: snapshot.presence?.name ?? 'them',
+    paired: Boolean(snapshot.presence),
+  });
 }
 
 /** iOS performs widget actions in-app via the interaction listener. */
@@ -97,8 +106,7 @@ export const WIDGET_KINDS = [
   'partner-carousel',
   'friends-carousel',
   'presence',
-  'streak-question',
-  'nudge',
+  'quick-send',
   'todo',
 ];
 
@@ -120,13 +128,16 @@ export async function drainWidgetActions(): Promise<{ type: string; id: string; 
  *
  * `target` is the string set on the `Button`, e.g. `nudge:heart`.
  */
-export function onWidgetInteraction(handler: (target: string) => void) {
+export function onWidgetInteraction(handler: (target: string) => void): () => void {
   // Imported lazily: `expo-widgets` throws at module load where the native side
   // is absent, and a top-level import that throws takes down the router.
   try {
     const { addUserInteractionListener } = require('expo-widgets') as typeof import('expo-widgets');
-    return addUserInteractionListener((event) => handler(event.target));
+    const subscription = addUserInteractionListener((event) => handler(event.target));
+    // Returns an unsubscribe function rather than the subscription object, so
+    // every platform's version can be used the same way in an effect.
+    return () => subscription.remove();
   } catch {
-    return { remove() {} };
+    return () => {};
   }
 }

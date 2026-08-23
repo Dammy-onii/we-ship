@@ -21,6 +21,8 @@ import { Onboarding } from '@/components/onboarding';
 import { hasSeenOnboarding, markOnboardingSeen } from '@/lib/onboarding';
 import { useAuth } from '@/lib/auth';
 import { GENDERS, type GenderKey } from '@/lib/gender';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, passwordProblem } from '@/lib/password';
+import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -34,6 +36,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   if (auth.loading || seenIntro === undefined) return <AuthLoading />;
+  // Checked before the session: a recovery link signs the user in, so without
+  // this the app would open normally and never ask for the new password.
+  if (auth.recovering) return <NewPasswordScreen />;
   if (!auth.configured || auth.session) return children;
 
   // First launch: explain what this is before asking for an email.
@@ -61,16 +66,87 @@ function AuthLoading() {
   );
 }
 
+/** Shown after following a recovery link, while the user picks a new password. */
+function NewPasswordScreen() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const { updatePassword, signOut } = useAuth();
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  const submit = async () => {
+    const problem = passwordProblem(password);
+    if (problem) {
+      toast.show(problem);
+      return;
+    }
+    setBusy(true);
+    const result = await updatePassword(password);
+    setBusy(false);
+    if (result.error) toast.show(result.error);
+    else toast.show('Password updated.', { tone: 'success' });
+  };
+
+  return (
+    <KeyboardAvoider style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 54, paddingBottom: insets.bottom + Spacing['4xl'] },
+        ]}>
+        <View style={[styles.mark, { backgroundColor: theme.primarySoft }]}>
+          <Ionicons name="lock-open-outline" size={28} color={theme.primaryDeep} />
+        </View>
+        <Text variant="hero">{'Choose a new\npassword.'}</Text>
+        <Text variant="body" color="textSoft">
+          You followed a recovery link, so you are signed in. Set a new password
+          to finish.
+        </Text>
+        <AuthInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="New password"
+          icon="lock-closed-outline"
+          secureTextEntry
+          autoCapitalize="none"
+          textContentType="newPassword"
+        />
+        <Text
+          variant="caption"
+          color={password && password.length < MIN_PASSWORD_LENGTH ? 'partner' : 'textFaint'}>
+          {PASSWORD_HINT}
+        </Text>
+        <Button
+          full
+          loading={busy}
+          disabled={password.length < MIN_PASSWORD_LENGTH}
+          label={busy ? 'Saving…' : 'Save password'}
+          onPress={submit}
+        />
+        <Pressable disabled={busy} onPress={signOut} style={styles.magicLink}>
+          <Text variant="captionStrong" color="textFaint">Cancel and sign out</Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoider>
+  );
+}
+
 function AuthScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { error: authError, signIn, signUp, sendMagicLink } = useAuth();
+  const { error: authError, signIn, signUp, sendMagicLink, sendPasswordReset } = useAuth();
   const [mode, setMode] = useState<'sign-in' | 'create'>('sign-in');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<GenderKey>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  // Which action is running, so the spinner appears on the control that was
+  // actually pressed rather than on all of them.
+  const [pending, setPending] = useState<'submit' | 'magic-link' | 'reset'>();
   const [message, setMessage] = useState('');
   const toast = useToast();
 
@@ -80,17 +156,42 @@ function AuthScreen() {
 
   const submit = async () => {
     if (!email.trim() || !password || (mode === 'create' && !name.trim())) return;
+    // Checked here as well as on the server so a too-short password fails
+    // instantly and says why, rather than after a round trip.
+    const problem = mode === 'create' ? passwordProblem(password) : undefined;
+    if (problem) {
+      toast.show(problem);
+      return;
+    }
     setBusy(true);
+    setPending('submit');
     setMessage('');
     const result =
       mode === 'create'
         ? await signUp({ email, password, displayName: name, gender })
         : await signIn(email, password);
     setBusy(false);
+    setPending(undefined);
     // Failures are transient and belong in the toast; a confirmation prompt is
     // an instruction the user needs to keep reading, so it stays inline.
     if (result.error) toast.show(result.error);
     else if (result.needsEmailConfirmation) setMessage('Check your email, then return to Weship.');
+  };
+
+  const forgotPassword = async () => {
+    if (!email.trim()) {
+      toast.show('Enter your email first.', { tone: 'info' });
+      return;
+    }
+    setBusy(true);
+    setPending('reset');
+    const result = await sendPasswordReset(email);
+    setBusy(false);
+    setPending(undefined);
+    if (result.error) toast.show(result.error);
+    // Deliberately the same message whether or not the address has an account:
+    // a different one would confirm which emails are registered here.
+    else setMessage('If that email has an account, a reset link is on its way.');
   };
 
   const magicLink = async () => {
@@ -99,8 +200,10 @@ function AuthScreen() {
       return;
     }
     setBusy(true);
+    setPending('magic-link');
     const result = await sendMagicLink(email);
     setBusy(false);
+    setPending(undefined);
     if (result.error) toast.show(result.error);
     else setMessage('Check your email for the secure sign-in link.');
   };
@@ -152,32 +255,14 @@ function AuthScreen() {
             />
           ) : null}
           {mode === 'create' ? (
-            <View style={styles.genderBlock}>
-              <Text variant="micro" color="textFaint">GENDER · OPTIONAL</Text>
-              <View style={styles.genderRow}>
-                {GENDERS.map((option) => {
-                  const selected = gender === option.key;
-                  return (
-                    <Pressable
-                      key={option.key}
-                      onPress={() => setGender(selected ? undefined : option.key)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected }}
-                      style={[
-                        styles.genderChip,
-                        {
-                          backgroundColor: selected ? theme.primarySoft : theme.surface,
-                          borderColor: selected ? theme.primary : theme.line,
-                        },
-                      ]}>
-                      <Text variant="caption" color={selected ? 'primaryDeep' : 'textSoft'}>
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
+            <Select
+              label="GENDER · OPTIONAL"
+              placeholder="Select"
+              options={GENDERS}
+              value={gender}
+              onChange={setGender}
+              clearable
+            />
           ) : null}
           <AuthInput
             value={email}
@@ -194,21 +279,83 @@ function AuthScreen() {
             icon="lock-closed-outline"
             secureTextEntry
             autoCapitalize="none"
+            textContentType={mode === 'create' ? 'newPassword' : 'password'}
           />
+          {mode === 'create' ? (
+            <Text
+              variant="caption"
+              color={password && password.length < MIN_PASSWORD_LENGTH ? 'partner' : 'textFaint'}>
+              {PASSWORD_HINT}
+            </Text>
+          ) : null}
         </View>
 
         {message ? <Text variant="caption" color="textSoft">{message}</Text> : null}
         <Button
           full
-          disabled={busy || !email.trim() || !password || (mode === 'create' && !name.trim())}
+          loading={pending === 'submit'}
+          disabled={
+            busy ||
+            !email.trim() ||
+            !password ||
+            (mode === 'create' && (!name.trim() || password.length < MIN_PASSWORD_LENGTH))
+          }
           label={busy ? 'Please wait…' : mode === 'create' ? 'Create private space' : 'Sign in'}
           onPress={submit}
         />
-        <Pressable disabled={busy} onPress={magicLink} style={styles.magicLink}>
-          <Text variant="captionStrong" color="primaryDeep">Email me a sign-in link</Text>
-        </Pressable>
+        <TextAction
+          label="Email me a sign-in link"
+          busyLabel="Sending the link…"
+          busy={pending === 'magic-link'}
+          disabled={busy}
+          onPress={magicLink}
+        />
+        {mode === 'sign-in' ? (
+          <TextAction
+            label="Forgot your password?"
+            busyLabel="Sending the reset link…"
+            busy={pending === 'reset'}
+            disabled={busy}
+            tone="textFaint"
+            onPress={forgotPassword}
+          />
+        ) : null}
       </ScrollView>
     </KeyboardAvoider>
+  );
+}
+
+/** A text link that can say it is working. */
+function TextAction({
+  label,
+  busyLabel,
+  busy,
+  disabled,
+  tone = 'primaryDeep',
+  onPress,
+}: {
+  label: string;
+  busyLabel: string;
+  busy: boolean;
+  disabled?: boolean;
+  tone?: 'primaryDeep' | 'textFaint';
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ busy, disabled }}
+      style={({ pressed }) => [styles.magicLink, pressed && { opacity: 0.6 }]}>
+      <View style={styles.textActionRow}>
+        {busy ? <ActivityIndicator size="small" color={theme.textFaint} /> : null}
+        <Text variant="captionStrong" color={busy ? 'textFaint' : tone}>
+          {busy ? busyLabel : label}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -242,16 +389,9 @@ const styles = StyleSheet.create({
   mark: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
   modeRow: { flexDirection: 'row', padding: 4, borderRadius: Radius.pill },
   modeButton: { flex: 1, minWidth: 0, minHeight: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center' },
-  genderBlock: { gap: 8, marginTop: 4 },
-  genderRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  genderChip: {
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
   fields: { gap: Spacing.sm },
   inputShell: { minHeight: 54, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.inset, flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, gap: Spacing.sm },
   input: { flex: 1, minWidth: 0, minHeight: 52, fontFamily: Font.sans, fontSize: 16 },
   magicLink: { alignItems: 'center', paddingVertical: Spacing.sm },
+  textActionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
 });

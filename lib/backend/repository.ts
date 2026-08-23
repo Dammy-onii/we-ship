@@ -29,6 +29,7 @@ import type {
 } from '@/lib/types';
 
 import { isMissingColumn, isMissingRpc, pendingMigrationMessage } from './rpc-compat';
+import { COMPLETION_WINDOW_DAYS, type CompletionRow } from '../task-periods';
 import { requireSupabase } from './supabase';
 import { completeDriveUpload, discardDriveUpload, uploadOriginalToDrive } from './drive';
 
@@ -48,6 +49,8 @@ export type LiveSnapshot = {
   archive: Question[];
   questionQueue: QuestionPrompt[];
   habits: Habit[];
+  /** Raw completion rows, which `log` flattens down to the current period only. */
+  completions: CompletionRow[];
   log: LogDay[];
   nudges: Nudge[];
   memories: MemoryItem[];
@@ -101,6 +104,28 @@ export async function fetchOwnProfile(userId: string): Promise<User> {
   };
 }
 
+/**
+ * Oldest `period_key` worth fetching.
+ *
+ * Filtered on `period_key`, not `completed_at`. The old query asked for the
+ * last 45 days of *completion timestamps*, which is both more rows than needed
+ * and subtly wrong: a monthly task ticked on the 2nd sits in a period that is
+ * still open on the 30th, so a short timestamp window would drop the row and
+ * the checkbox would come back unticked. `period_key` is the period's own start
+ * date, so bounding on it can never lose a period that is still running — and
+ * it is the indexed column in `unique (task_id, user_id, period_key)`.
+ *
+ * The bound is whichever is earlier: the start of the current month (so the
+ * open monthly period is always included) or the tracker's lookback.
+ */
+function earliestCompletionPeriod(): string {
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const lookback = new Date(now.getTime() - COMPLETION_WINDOW_DAYS * 86_400_000);
+  const earliest = monthStart < lookback ? monthStart : lookback;
+  return earliest.toISOString().slice(0, 10);
+}
+
 export async function fetchLiveSnapshot(userId: string): Promise<LiveSnapshot | null> {
   const client = requireSupabase();
   const membershipResult = await client
@@ -137,7 +162,7 @@ export async function fetchLiveSnapshot(userId: string): Promise<LiveSnapshot | 
     client.from('spaces').select('*').eq('id', spaceId).single(),
     client.from('space_members').select('user_id, profiles(*)').eq('space_id', spaceId),
     client.from('tasks').select('*').eq('space_id', spaceId).is('archived_at', null).order('sort_order').order('created_at'),
-    client.from('task_completions').select('*').eq('space_id', spaceId).gte('completed_at', new Date(Date.now() - 45 * 86400000).toISOString()),
+    client.from('task_completions').select('*').eq('space_id', spaceId).gte('period_key', earliestCompletionPeriod()),
     client.from('notes').select('*').eq('space_id', spaceId).order('created_at', { ascending: false }),
     client.from('goodies').select('*').eq('space_id', spaceId).order('created_at', { ascending: false }).limit(100),
     client.from('memories').select('*').eq('space_id', spaceId).order('occurred_on', { ascending: false }),
@@ -195,6 +220,7 @@ export async function fetchLiveSnapshot(userId: string): Promise<LiveSnapshot | 
     color: row.color,
     routine: row.routine,
     noteRequired: row.note_required,
+    createdAt: row.created_at,
   }));
 
   // Day boundaries follow the viewer's own timezone, not UTC.
@@ -208,6 +234,14 @@ export async function fetchLiveSnapshot(userId: string): Promise<LiveSnapshot | 
       }
     }
   }
+
+  // Kept alongside `todayLog`, which flattens away everything but the current
+  // period — the missed-period tracker needs the history the rows carry.
+  const completions: CompletionRow[] = completionRows.map((row) => ({
+    taskId: row.task_id,
+    userId: localUserId(row.user_id, userId),
+    periodKey: row.period_key,
+  }));
 
   const presenceRows = (presenceResult.data ?? []) as AnyRow[];
   const presences: Presence[] = memberRows.map((member) => {
@@ -294,6 +328,7 @@ export async function fetchLiveSnapshot(userId: string): Promise<LiveSnapshot | 
     rawPartnerId,
     space: {
       id: spaceId,
+      name: spaceRow.name ?? undefined,
       memberIds: [LOCAL_ME_ID, LOCAL_PARTNER_ID],
       mode: spaceRow.mode,
       anniversary: spaceRow.anniversary ?? undefined,
@@ -322,6 +357,7 @@ export async function fetchLiveSnapshot(userId: string): Promise<LiveSnapshot | 
       createdAt: row.created_at,
     })),
     habits,
+    completions,
     log: [todayLog],
     nudges: ((nudgesResult.data ?? []) as AnyRow[]).map((row) => ({
       id: row.id,
@@ -482,15 +518,32 @@ export async function markPartnerNudgesSeen() {
   if (fallback.error && !isMissingColumn(fallback.error, ['seen'])) throwError(fallback.error);
 }
 
-export async function addTask(spaceId: string, userId: string, input: { label: string; routine: TaskRoutine; noteRequired: boolean }) {
-  const { error } = await requireSupabase().from('tasks').insert({
-    space_id: spaceId,
-    created_by: userId,
-    label: input.label.trim(),
-    routine: input.routine,
-    note_required: input.noteRequired,
-  });
+/**
+ * Creates a shared task and returns the id the database assigned it.
+ *
+ * The caller shows the task immediately under a locally generated placeholder
+ * id. That placeholder is not a UUID, so ticking the box before the insert
+ * landed sent it straight to Postgres and failed with `invalid input syntax
+ * for type uuid`. Returning the real id lets the caller swap it in.
+ */
+export async function addTask(
+  spaceId: string,
+  userId: string,
+  input: { label: string; routine: TaskRoutine; noteRequired: boolean },
+): Promise<string> {
+  const { data, error } = await requireSupabase()
+    .from('tasks')
+    .insert({
+      space_id: spaceId,
+      created_by: userId,
+      label: input.label.trim(),
+      routine: input.routine,
+      note_required: input.noteRequired,
+    })
+    .select('id')
+    .single();
   if (error) throw new Error(error.message);
+  return data.id as string;
 }
 
 export async function deleteTask(taskId: string) {
@@ -792,6 +845,63 @@ export async function setSpaceAnniversary(date: string) {
   if (!spaceId) throw new Error('Create or join a shared space first.');
   const fallback = await client.from('spaces').update({ anniversary: date }).eq('id', spaceId);
   throwError(fallback.error);
+}
+
+/** Renames the shared space. `spaces_update_members` already permits a member to write it. */
+export async function renameSpace(name: string) {
+  const client = requireSupabase();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Give your space a name.');
+  const membership = await client
+    .from('space_members')
+    .select('space_id')
+    .eq('user_id', (await client.auth.getUser()).data.user?.id ?? '')
+    .maybeSingle();
+  throwError(membership.error);
+  const spaceId = (membership.data as AnyRow | null)?.space_id as string | undefined;
+  if (!spaceId) throw new Error('Create or join a shared space first.');
+  const { error } = await client.from('spaces').update({ name: trimmed }).eq('id', spaceId);
+  throwError(error);
+}
+
+/**
+ * Puts one of the pair's Goodies at the front of the partner's "Us" widget.
+ *
+ * The Goodie id goes to the server rather than a Storage path: the client never
+ * holds one, and accepting one would let it aim the widget at any object it
+ * could guess. Replaces any previous favourite — one live favourite per person.
+ */
+export async function favouriteGoodieForWidget(goodieId: string) {
+  const { error } = await requireSupabase().rpc('favourite_goodie_for_widget', {
+    p_goodie_id: goodieId,
+  });
+  throwError(error);
+}
+
+export async function clearWidgetFavourite() {
+  const { error } = await requireSupabase().rpc('clear_widget_favourite');
+  throwError(error);
+}
+
+export type WidgetFavourite = { kind: 'photo' | 'note'; body?: string; uri?: string };
+
+/** The favourite the partner set *for this user*, resolved to a usable image URL. */
+export async function fetchWidgetFavourite(userId: string): Promise<WidgetFavourite | null> {
+  const { data, error } = await requireSupabase()
+    .from('widget_favourites')
+    .select('kind, body, preview_path')
+    .eq('target_user_id', userId)
+    .maybeSingle();
+  // A missing table means the migration has not been applied yet; the widget
+  // simply has no favourite rather than the whole snapshot failing.
+  if (error) return null;
+  const row = data as AnyRow | null;
+  if (!row) return null;
+  return {
+    kind: row.kind === 'photo' ? 'photo' : 'note',
+    body: row.body ?? undefined,
+    uri: row.preview_path ? await signedUrl('goodie-previews', row.preview_path) : undefined,
+  };
 }
 
 export async function leavePairSpace() {

@@ -27,6 +27,27 @@ Deno.serve(async (request) => {
     const target = parseTarget(input.target);
     const { accessToken } = await googleAccessToken(user.id);
 
+    /*
+     * Storage headroom, for the Connections screen.
+     *
+     * `about.get` accepts the `drive.file` scope the app already holds, so this
+     * needs no extra consent. `limit` is absent on unlimited (Workspace) plans,
+     * which the client renders as "unlimited" rather than as zero.
+     */
+    if (action === 'quota') {
+      const about = await googleJson(
+        'https://www.googleapis.com/drive/v3/about?fields=storageQuota,user(emailAddress)',
+        accessToken,
+      );
+      const quota = about?.storageQuota ?? {};
+      return json({
+        limitBytes: quota.limit ? Number(quota.limit) : null,
+        usageBytes: quota.usage ? Number(quota.usage) : 0,
+        usageInDriveBytes: quota.usageInDrive ? Number(quota.usageInDrive) : 0,
+        email: about?.user?.emailAddress ?? null,
+      });
+    }
+
     if (action === 'delete') {
       const id = parseUuid(input.id, 'id');
       const table = target === 'memory' ? 'memory_media' : 'goodies';

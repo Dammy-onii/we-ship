@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "app.weship.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#F6F3EE",
         "foregroundImage": "./assets/images/generated/android-icon-foreground.png",
@@ -86,7 +87,7 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "Weship checks which of your contacts are already here. Only scrambled codes leave your phone \u2014 never the contacts themselves."
+          "contactsPermission": "Weship checks which of your contacts are already here. Only scrambled codes leave your phone — never the contacts themselves."
         }
       ],
       "expo-asset",
@@ -94,7 +95,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/android-icon-monochrome.png",
+          "icon": "./assets/images/generated/android-icon-monochrome.png",
           "color": "#5F5B57",
           "defaultChannel": "weship-updates-v3"
         }
@@ -184,9 +185,9 @@
               "android": null
             },
             {
-              "name": "StreakQuestionWidget",
-              "displayName": "Weship Streak",
-              "description": "Your streak and today's question.",
+              "name": "QuickSendWidget",
+              "displayName": "Weship Quick send",
+              "description": "Send a photo, voice note or note in one tap.",
               "supportedFamilies": [
                 "systemSmall",
                 "systemMedium"
@@ -196,22 +197,6 @@
                 "supportedFamilies": [
                   "systemSmall",
                   "systemMedium"
-                ],
-                "contentMarginsDisabled": true
-              },
-              "android": null
-            },
-            {
-              "name": "NudgeWidget",
-              "displayName": "Weship Nudge",
-              "description": "Send a heart from your home screen.",
-              "supportedFamilies": [
-                "systemSmall"
-              ],
-              "contentMarginsDisabled": true,
-              "ios": {
-                "supportedFamilies": [
-                  "systemSmall"
                 ],
                 "contentMarginsDisabled": true
               },

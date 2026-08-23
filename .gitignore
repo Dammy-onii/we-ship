@@ -43,3 +43,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Firebase / Google service-account private keys.
+# `google-services.json` is deliberately NOT ignored — it holds no secret and
+# EAS builds from the Git tree, so ignoring it makes push fail silently.
+*service-account*.json
+*-adminsdk-*.json

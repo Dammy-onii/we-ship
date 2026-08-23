@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
+import * as drive from '@/lib/backend/drive';
 import * as integrations from '@/lib/backend/integrations';
 import { useBackendStatus } from '@/lib/store';
 import { userFacingError } from '@/lib/user-facing-error';
@@ -57,14 +59,14 @@ export default function ConnectionsScreen() {
       await integrations.connectGoogle();
       await load();
     } catch (error) {
-      Alert.alert('Could not connect Google', userFacingError(error, 'Please try again in a moment.'));
+      showDialog('Could not connect Google', userFacingError(error, 'Please try again in a moment.'));
     } finally { setBusy(false); }
   };
 
   const disconnect = async () => {
     setBusy(true);
     try { await integrations.disconnectProvider('google'); await load(); }
-    catch (error) { Alert.alert('Could not disconnect', userFacingError(error, 'Please try again.')); }
+    catch (error) { showDialog('Could not disconnect', userFacingError(error, 'Please try again.')); }
     finally { setBusy(false); }
   };
 
@@ -116,6 +118,8 @@ export default function ConnectionsScreen() {
             </View>
           </View>
 
+          {driveGranted ? <DriveStorageMeter /> : null}
+
           {!driveGranted ? (
             <View style={[styles.privacy, { backgroundColor: theme.partnerSoft }]}>
               <Ionicons name="alert-circle-outline" size={19} color={theme.partner} />
@@ -129,21 +133,21 @@ export default function ConnectionsScreen() {
             </View>
           ) : null}
 
+          {/*
+            * Named in plain language. This panel used to print the raw OAuth
+            * scope strings — `drive.file · userinfo.email · openid` — which
+            * read as debug output left in a shipping screen.
+            */}
           <View style={[styles.scopes, { borderColor: theme.line }]}>
-            <Text variant="micro" color="textFaint">GRANTED ACCESS</Text>
-            <Text variant="caption" color="textSoft">
-              Calendar {calendarGranted ? '✓' : '—'}   ·   Drive {driveGranted ? '✓' : '—'}
-            </Text>
-            {google?.scopes?.length ? (
-              <Text variant="micro" color="textFaint">
-                {google.scopes.map((scope) => scope.split('/').pop()).join(' · ')}
-              </Text>
-            ) : null}
+            <Text variant="micro" color="textFaint">WHAT WESHIP CAN SEE</Text>
+            <ScopeLine granted={calendarGranted} label="Your calendar events" />
+            <ScopeLine granted={driveGranted} label="Only the files Weship creates in your Drive" />
+            <ScopeLine granted label="Your name, email and profile picture" />
           </View>
           <Button label="Disconnect Google" variant="ghost" disabled={busy} onPress={disconnect} />
         </>
       ) : !loadingConnections && !connectionError ? (
-        <Button full label={busy ? 'Opening Google…' : 'Connect Google'} disabled={busy || sync.mode !== 'live'} onPress={connect} />
+        <Button full loading={busy} label={busy ? 'Opening Google…' : 'Connect Google'} disabled={sync.mode !== 'live'} onPress={connect} />
       ) : null}
 
       {sync.mode !== 'live' ? <Text variant="caption" color="textFaint">Sign in to connect your Google account.</Text> : null}
@@ -155,13 +159,140 @@ export default function ConnectionsScreen() {
   );
 }
 
+/**
+ * How much room is left on the connected Google account.
+ *
+ * Originals go to the user's own Drive, so their quota is what actually limits
+ * sharing — and running out shows up as a failed upload with no explanation
+ * unless something says so first.
+ */
+function DriveStorageMeter() {
+  const theme = useTheme();
+  const [storage, setStorage] = useState<drive.DriveStorage>();
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    drive
+      .fetchDriveStorage()
+      .then((value) => active && setStorage(value))
+      .catch(() => active && setFailed(true));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // A failed quota read used to render nothing at all, so the page simply had
+  // no Drive information on it and there was no way to tell that apart from a
+  // page still loading.
+  if (failed) {
+    return (
+      <View style={[styles.action, { backgroundColor: theme.surfaceAlt }]}>
+        <Ionicons name="cloud-offline-outline" size={22} color={theme.textFaint} />
+        <View style={{ flex: 1 }}>
+          <Text variant="bodyStrong">Drive storage</Text>
+          <Text variant="caption" color="textFaint">
+            Couldn’t read your Drive storage just now. Your files are unaffected.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+  if (!storage) {
+    return (
+      <View style={[styles.action, { backgroundColor: theme.surfaceAlt }]}>
+        <ActivityIndicator color={theme.primary} />
+        <Text variant="caption" color="textFaint">Checking your Drive storage…</Text>
+      </View>
+    );
+  }
+
+  // Workspace plans can report no limit at all.
+  if (storage.limitBytes === null) {
+    return (
+      <View style={[styles.action, { backgroundColor: theme.surfaceAlt }]}>
+        <Ionicons name="infinite-outline" size={22} color={theme.primaryDeep} />
+        <View style={{ flex: 1 }}>
+          <Text variant="bodyStrong">Drive storage</Text>
+          <Text variant="caption" color="textFaint">
+            This account has no storage limit.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const used = Math.min(1, storage.usageBytes / storage.limitBytes);
+  const nearlyFull = used >= 0.9;
+  const gettingFull = used >= 0.75;
+  const accent = nearlyFull ? theme.partner : gettingFull ? theme.gold : theme.primary;
+
+  return (
+    <View style={[styles.action, styles.storage, { backgroundColor: theme.surfaceAlt }]}>
+      <View style={styles.storageHead}>
+        <Ionicons name="server-outline" size={20} color={accent} />
+        <Text variant="bodyStrong" style={{ flex: 1 }}>Drive storage</Text>
+        <Text variant="caption" color="textFaint">
+          {formatBytes(storage.usageBytes)} of {formatBytes(storage.limitBytes)}
+        </Text>
+      </View>
+      <View style={[styles.storageTrack, { backgroundColor: theme.surfaceSunk }]}>
+        <View
+          style={[styles.storageFill, { backgroundColor: accent, width: `${Math.max(2, used * 100)}%` }]}
+        />
+      </View>
+      <Text variant="caption" color={nearlyFull ? 'partner' : 'textFaint'}>
+        {nearlyFull
+          ? `Almost full — ${formatBytes(storage.limitBytes - storage.usageBytes)} left. New photos and videos will start failing to upload.`
+          : gettingFull
+            ? `${formatBytes(storage.limitBytes - storage.usageBytes)} left.`
+            : `${formatBytes(storage.limitBytes - storage.usageBytes)} free for photo and video originals.`}
+      </Text>
+    </View>
+  );
+}
+
+/** One capability the connection grants, in words rather than scope strings. */
+function ScopeLine({ granted, label }: { granted: boolean; label: string }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.scopeLine}>
+      <Ionicons
+        name={granted ? 'checkmark-circle' : 'close-circle-outline'}
+        size={15}
+        color={granted ? theme.success : theme.textFaint}
+      />
+      <Text variant="caption" color={granted ? 'textSoft' : 'textFaint'} style={{ flex: 1 }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
 const styles = StyleSheet.create({
   content: { padding: Spacing.lg, gap: Spacing.lg },
   intro: { gap: Spacing.sm },
+  storage: { flexDirection: 'column', alignItems: 'stretch', gap: Spacing.sm },
+  storageHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  storageTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  storageFill: { height: '100%', borderRadius: 4 },
   provider: { minHeight: 78, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   providerIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   stateDot: { width: 9, height: 9, borderRadius: 5 },
   action: { borderRadius: Radius.inset, padding: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  scopeLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   scopes: { borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.inset, padding: Spacing.md, gap: 5 },
   privacy: { borderRadius: Radius.inset, padding: Spacing.md, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   retryState: { gap: Spacing.sm, alignItems: 'center' },

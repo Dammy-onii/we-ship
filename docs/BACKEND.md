@@ -16,6 +16,39 @@ Best fit for an Expo app that needs realtime presence, media, and push.
 - **Firebase** — easiest realtime + push, but NoSQL modeling gets awkward for the relationship/friend graph and costs are less predictable.
 - **Convex** — excellent modern reactive backend, great Expo DX; smaller ecosystem, less raw-data control.
 
+## What the privacy model does and does not cover
+
+Stated plainly, because the app's own wording has to match it.
+
+**Protected.** Disk encryption at rest and TLS in transit, both from Supabase.
+Row Level Security scopes every table to the pair or the friendship that owns
+it, so no user can read another user's rows. Where a screen legitimately needs
+a little more than RLS exposes — a friend's gender and whether they are paired,
+for their profile page — it goes through a `SECURITY DEFINER` function
+(`public.get_friend_profile`) that returns a fixed projection and only for
+someone you are actually connected to, rather than by widening a table policy. Google OAuth access and refresh
+tokens are additionally encrypted with AES-GCM before storage
+(`supabase/functions/_shared/crypto.ts`) — a stolen refresh token is a live
+credential to someone's whole Drive and Calendar. Contact identifiers are only
+ever stored as salted hashes. Photo and video originals live in the uploader's
+own Drive; only compact previews are held here.
+
+**Not protected.** User content — notes, Goodie captions, question answers,
+moods, task titles — is stored as plaintext columns. The project owner can read
+all of it from the Supabase dashboard, which authenticates as them and uses
+service-role access that bypasses RLS by design. RLS protects users from each
+other; it has never protected data from the operator.
+
+This is the ordinary posture for a hosted app, but it is **not** end-to-end
+encryption, and user-facing copy must not imply that it is. "Only the two of you
+can see this" is a claim this architecture does not support; "no other Weship
+member can see this" is one it does. Adopting E2EE later would mean giving up
+content in push notifications, any server-side search, and any possibility of
+content recovery — a product decision, not a patch.
+
+Operationally, the practical control is the Supabase account itself: enable MFA
+and keep dashboard access to as few people as possible.
+
 ## Also required (regardless of backend)
 
 - **Expo Push Notifications** — nudges, "partner answered," milestone reminders.

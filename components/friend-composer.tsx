@@ -1,16 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from 'expo-audio';
-import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
-  Alert,
   Modal,
   Platform,
   Pressable,
@@ -22,15 +15,27 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardAvoider } from '@/components/ui/keyboard-avoider';
+import { VoiceRecorder } from '@/components/voice-recorder';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useNativePickerAction } from '@/hooks/use-native-picker';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
-import { enterPlaybackMode, enterRecordingMode } from '@/lib/audio-mode';
 import { useFriends } from '@/lib/friends';
+import { useGoogleConnection } from '@/lib/use-google-connection';
 import type { FriendPostKind } from '@/lib/types';
+
+/**
+ * How many photos one post may carry.
+ *
+ * Without Drive the originals have nowhere of the user's own to live, so the
+ * app is the one absorbing the storage — hence the tighter cap, and a prompt
+ * explaining what lifts it rather than a bare refusal.
+ */
+const MAX_PHOTOS_WITHOUT_DRIVE = 2;
+const MAX_PHOTOS_WITH_DRIVE = 10;
 
 const KINDS: {
   kind: FriendPostKind;
@@ -43,8 +48,6 @@ const KINDS: {
   { kind: 'voice', label: 'Voice', icon: 'mic-outline' },
 ];
 
-const VOICE_RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
-
 /**
  * The friend-board composer.
  *
@@ -56,24 +59,24 @@ const VOICE_RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEn
 export function FriendComposer({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { post } = useFriends();
   const [kind, setKind] = useState<FriendPostKind>('note');
   const [text, setText] = useState('');
-  const [mediaAsset, setMediaAsset] = useState<ImagePicker.ImagePickerAsset>();
-  const [recordedUri, setRecordedUri] = useState<string>();
-  const [recordedDuration, setRecordedDuration] = useState(0);
+  const [mediaAssets, setMediaAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [sending, setSending] = useState(false);
-  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
-  const recorderState = useAudioRecorderState(recorder, 100);
-  const captureAutoStop = useRef(false);
   const runPicker = useNativePickerAction();
+  const { driveConnected } = useGoogleConnection();
+
+  // Until the grant is known, assume the generous limit: tightening it on a
+  // slow network read would be a worse surprise than briefly allowing more.
+  const photoLimit =
+    driveConnected === false ? MAX_PHOTOS_WITHOUT_DRIVE : MAX_PHOTOS_WITH_DRIVE;
 
   const reset = () => {
     setKind('note');
     setText('');
-    setMediaAsset(undefined);
-    setRecordedUri(undefined);
-    setRecordedDuration(0);
+    setMediaAssets([]);
   };
 
   const close = () => {
@@ -83,17 +86,14 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
   };
 
   const selectKind = (next: FriendPostKind) => {
-    if (recorderState.isRecording) return;
     setKind(next);
-    setMediaAsset(undefined);
-    setRecordedUri(undefined);
-    setRecordedDuration(0);
+    setMediaAssets([]);
   };
 
   const pickMedia = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Photos permission needed', 'Allow photo access to choose something to post.');
+      showDialog('Photos permission needed', 'Allow photo access to choose something to post.');
       return;
     }
     const result = await runPicker(() =>
@@ -101,86 +101,58 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
         mediaTypes: kind === 'video' ? ['videos'] : ['images'],
         allowsEditing: false,
         quality: 0.9,
+        // Videos stay one at a time: they are large enough that batching them
+        // is a slow upload with no obvious progress.
+        allowsMultipleSelection: kind === 'photo',
+        selectionLimit: kind === 'photo' ? photoLimit : 1,
       }),
     );
-    if (!result.canceled) setMediaAsset(result.assets[0]);
-  };
-
-  const toggleRecording = async () => {
-    if (!recorderState.isRecording) {
-      const permission = await requestRecordingPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Microphone permission needed', 'Allow microphone access to record a memo.');
-        return;
-      }
-      setRecordedUri(undefined);
-      setRecordedDuration(0);
-      await enterRecordingMode();
-      await recorder.prepareToRecordAsync();
-      captureAutoStop.current = true;
-      recorder.record({ forDuration: 120 });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      return;
+    if (result.canceled) return;
+    // `selectionLimit` is advisory on some Android pickers, so the cap is
+    // applied again here rather than trusted.
+    const chosen = result.assets.slice(0, kind === 'photo' ? photoLimit : 1);
+    setMediaAssets(chosen);
+    if (kind === 'photo' && result.assets.length > chosen.length) {
+      showDialog(
+        'Two photos at a time',
+        'Connect Google Drive in Connections to share up to ten at once. Your originals stay in your own Drive.',
+      );
     }
-
-    const duration = recorderState.durationMillis;
-    captureAutoStop.current = false;
-    await recorder.stop();
-    setRecordedUri(recorder.uri ?? undefined);
-    setRecordedDuration(Math.max(1, Math.round(duration / 1000)));
-    await enterPlaybackMode();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
-
-  const discardRecording = async () => {
-    captureAutoStop.current = false;
-    if (recorderState.isRecording) {
-      try {
-        await recorder.stop();
-      } catch {
-        // Already stopped — clearing the state below is still correct.
-      }
-    }
-    setRecordedUri(undefined);
-    setRecordedDuration(0);
-    await enterPlaybackMode();
-  };
-
-  // `record({ forDuration })` stops natively at the cap. Capture the resulting
-  // URI from the recorder state transition just as we do for a manual stop.
-  useEffect(() => {
-    if (recorderState.isRecording || !captureAutoStop.current || !recorder.uri) return;
-    captureAutoStop.current = false;
-    setRecordedUri(recorder.uri);
-    setRecordedDuration(Math.max(1, Math.round(recorderState.durationMillis / 1000) || 120));
-    enterPlaybackMode().catch(() => {});
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  }, [recorder.uri, recorderState.durationMillis, recorderState.isRecording]);
 
   const canSend =
     (kind === 'note' && Boolean(text.trim())) ||
-    (kind === 'voice' && Boolean(recordedUri)) ||
-    ((kind === 'photo' || kind === 'video') && Boolean(mediaAsset));
+    ((kind === 'photo' || kind === 'video') && mediaAssets.length > 0);
 
-  const send = async () => {
-    if (!canSend || sending) return;
+  /** Voice posts are sent from the recorder itself, so they carry their own take. */
+  const send = async (voice?: { uri: string; durationSeconds: number }) => {
+    if ((!canSend && !voice) || sending) return;
     setSending(true);
     try {
-      await post({
-        kind,
-        text: text.trim() || undefined,
-        uri: kind === 'voice' ? recordedUri : mediaAsset?.uri,
-        durationSeconds: kind === 'voice' ? recordedDuration : undefined,
-        fileName: mediaAsset?.fileName,
-        mimeType: mediaAsset?.mimeType,
-        sizeBytes: mediaAsset?.fileSize,
-        width: mediaAsset?.width,
-        height: mediaAsset?.height,
-      });
+      if (voice || !mediaAssets.length) {
+        await post({ kind, text: text.trim() || undefined, uri: voice?.uri, durationSeconds: voice?.durationSeconds });
+      } else {
+        // One row per photo: `friend_posts` carries a single media reference,
+        // and a batch is just several of them. Sequential rather than parallel
+        // so a slow connection uploads one at a time instead of stalling on all.
+        for (const [index, asset] of mediaAssets.entries()) {
+          await post({
+            kind,
+            // The caption belongs to the batch, so only the first carries it.
+            text: index === 0 ? text.trim() || undefined : undefined,
+            uri: asset.uri,
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.fileSize,
+            width: asset.width,
+            height: asset.height,
+          });
+        }
+      }
       reset();
       onClose();
     } catch (error) {
-      Alert.alert('Could not post', userFacingError(error, 'Please try again.'));
+      showDialog('Could not post', userFacingError(error, 'Please try again.'));
     } finally {
       setSending(false);
     }
@@ -211,7 +183,7 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
               </Pressable>
             </View>
             <Text variant="caption" color="textFaint">
-              Everyone you are connected to will see this. Your partner’s Goodies stay private.
+              Everyone you are connected to will see this. It never reaches your shared space.
             </Text>
 
             <ScrollView
@@ -247,82 +219,67 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
             </ScrollView>
 
             {kind === 'photo' || kind === 'video' ? (
-              <Pressable
-                onPress={pickMedia}
-                style={[styles.picker, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
-                {mediaAsset?.uri && kind === 'photo' ? (
-                  <Image source={{ uri: mediaAsset.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={kind === 'video' ? 'videocam-outline' : 'images-outline'}
-                      size={28}
-                      color={theme.primary}
-                    />
-                    <Text variant="bodyStrong">
-                      {mediaAsset ? 'Video selected' : `Choose a ${kind}`}
+              <>
+                <Pressable
+                  onPress={pickMedia}
+                  style={[styles.picker, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
+                  {mediaAssets.length && kind === 'photo' ? (
+                    <View style={styles.thumbRow}>
+                      {mediaAssets.map((asset) => (
+                        <Image
+                          key={asset.assetId ?? asset.uri}
+                          source={{ uri: asset.uri }}
+                          style={styles.thumb}
+                          contentFit="cover"
+                        />
+                      ))}
+                    </View>
+                  ) : (
+                    <>
+                      <Ionicons
+                        name={kind === 'video' ? 'videocam-outline' : 'images-outline'}
+                        size={28}
+                        color={theme.primary}
+                      />
+                      <Text variant="bodyStrong">
+                        {mediaAssets.length
+                          ? 'Video selected'
+                          : kind === 'photo'
+                            ? `Choose up to ${photoLimit} photos`
+                            : 'Choose a video'}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+
+                {/* Says what lifts the limit, rather than only that there is one. */}
+                {kind === 'photo' && driveConnected === false ? (
+                  <Pressable
+                    onPress={() => {
+                      close();
+                      router.push('/connections');
+                    }}
+                    style={({ pressed }) => [
+                      styles.driveNudge,
+                      { backgroundColor: theme.primarySoft },
+                      pressed && { opacity: 0.75 },
+                    ]}>
+                    <Ionicons name="cloud-upload-outline" size={17} color={theme.primaryDeep} />
+                    <Text variant="caption" color="primaryDeep" style={{ flex: 1 }}>
+                      Two photos at a time. Connect Google Drive to share up to{' '}
+                      {MAX_PHOTOS_WITH_DRIVE} — originals stay in your own Drive.
                     </Text>
-                  </>
-                )}
-              </Pressable>
+                    <Ionicons name="chevron-forward" size={15} color={theme.primaryDeep} />
+                  </Pressable>
+                ) : null}
+              </>
             ) : null}
 
             {kind === 'voice' ? (
-              <View style={[styles.voice, { backgroundColor: theme.surfaceAlt }]}>
-                <View style={styles.voiceStatus}>
-                  <Text variant="bodyStrong">
-                    {recorderState.isRecording
-                      ? 'Recording…'
-                      : recordedUri
-                        ? 'Ready to post'
-                        : 'Record a voice memo'}
-                  </Text>
-                  <Text variant="micro" color="textFaint">
-                    {formatDuration(
-                      recorderState.isRecording
-                        ? recorderState.durationMillis / 1000
-                        : recordedDuration,
-                    )}
-                    {recorderState.isRecording ? ' · MAX 2:00' : recordedUri ? '' : ' · UP TO 2 MINUTES'}
-                  </Text>
-                </View>
-                <View style={styles.voiceControls}>
-                  {recorderState.isRecording || recordedUri ? (
-                    <Pressable
-                      onPress={discardRecording}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        recorderState.isRecording ? 'Cancel recording' : 'Delete voice memo'
-                      }
-                      style={({ pressed }) => [
-                        styles.voiceSecondary,
-                        { borderColor: theme.line },
-                        pressed && { opacity: 0.6 },
-                      ]}>
-                      <Ionicons name="close" size={20} color={theme.textSoft} />
-                    </Pressable>
-                  ) : (
-                    <View style={styles.voiceSpacer} />
-                  )}
-                  <Pressable
-                    onPress={toggleRecording}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      recorderState.isRecording ? 'Stop recording' : 'Start recording'
-                    }
-                    style={[
-                      styles.recordButton,
-                      { backgroundColor: recorderState.isRecording ? theme.bloom : theme.primary },
-                    ]}>
-                    <Ionicons
-                      name={recorderState.isRecording ? 'stop' : 'mic'}
-                      size={26}
-                      color={theme.onPrimary}
-                    />
-                  </Pressable>
-                  <View style={styles.voiceSpacer} />
-                </View>
-              </View>
+              <VoiceRecorder
+                sending={sending}
+                onSend={(uri, durationSeconds) => send({ uri, durationSeconds })}
+              />
             ) : null}
 
             <TextInput
@@ -339,23 +296,21 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
               ]}
             />
 
-            <Button
-              full
-              label={sending ? 'Posting…' : 'Post to friends'}
-              icon={<Ionicons name="send" size={17} color={theme.onPrimary} />}
-              onPress={send}
-              disabled={!canSend || sending}
-            />
+            {kind === 'voice' ? null : (
+              <Button
+                full
+                loading={sending}
+                label={sending ? 'Posting…' : 'Post to friends'}
+                icon={<Ionicons name="send" size={17} color={theme.onPrimary} />}
+                onPress={() => send()}
+                disabled={!canSend || sending}
+              />
+            )}
           </ScrollView>
         </KeyboardAvoider>
       </View>
     </Modal>
   );
-}
-
-function formatDuration(seconds: number) {
-  const total = Math.max(0, Math.round(seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 const styles = StyleSheet.create({
@@ -381,6 +336,15 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  thumbRow: { ...StyleSheet.absoluteFill, flexDirection: 'row', gap: 2 },
+  thumb: { flex: 1, height: '100%' },
+  driveNudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radius.inset,
+  },
   picker: {
     height: 168,
     borderRadius: Radius.inset,
@@ -390,19 +354,6 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     overflow: 'hidden',
   },
-  voice: { padding: Spacing.md, borderRadius: Radius.inset, gap: Spacing.md },
-  voiceStatus: { gap: 3 },
-  voiceControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.lg },
-  voiceSecondary: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  voiceSpacer: { width: 44 },
-  recordButton: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
   input: {
     minHeight: 52,
     maxHeight: 160,

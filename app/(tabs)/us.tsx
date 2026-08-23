@@ -12,8 +12,8 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useLog, useMoments, useNotes, useStreak, useUser, YOU_ID } from '@/lib/store';
-import { relativeDay } from '@/lib/time';
+import { useLog, useMemories, useMoments, useNotes, useSpace, useStreak, useUser, YOU_ID } from '@/lib/store';
+import { dayKeyIn, relativeDay } from '@/lib/time';
 
 export default function UsScreen() {
   const router = useRouter();
@@ -22,11 +22,27 @@ export default function UsScreen() {
   const moments = useMoments();
   const streak = useStreak();
   const { habits, today } = useLog();
+  const space = useSpace();
+  const { memories } = useMemories();
   const completed = habits.filter((task) => today.habits[task.id]?.[YOU_ID]).length;
+
+  /*
+   * The next thing in the shared calendar.
+   *
+   * This row used to read "Dinner call · tonight at 8:00" for everyone — a
+   * hardcoded string left over from the design mock, which looked like a real
+   * event and was not one.
+   */
+  const todayKey = dayKeyIn();
+  const nextEvent = memories
+    .filter((memory) => memory.kind === 'milestone' && memory.date >= todayKey)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
 
   return (
     <Screen gradient>
-      <AppHeader title="Us" subtitle="Your shared space" />
+      {/* The pair named this space when they created it; nothing showed it back
+          to them afterwards. */}
+      <AppHeader title={space.name?.trim() || 'Us'} subtitle="Your shared space" />
       <View style={styles.body}>
         <SectionHeader
           overline="Moments"
@@ -55,7 +71,16 @@ export default function UsScreen() {
         <SectionHeader overline="Shared activity" title="Updates" />
         <View style={[styles.updates, { borderTopColor: theme.line, borderBottomColor: theme.line }]}>
           <UpdateRow icon="flame-outline" title="Streak" detail={`${streak.count} day streak · keep showing up`} />
-          <UpdateRow icon="calendar-outline" title="Calendar" detail="Dinner call · tonight at 8:00" onPress={() => router.push('/memories')} />
+          <UpdateRow
+            icon="calendar-outline"
+            title="Calendar"
+            detail={
+              nextEvent
+                ? `${nextEvent.title} · ${relativeDay(nextEvent.date)}`
+                : 'Nothing coming up — import from Google Calendar'
+            }
+            onPress={() => router.push('/calendar')}
+          />
           <UpdateRow icon="images-outline" title="Memories" detail={`${moments.length} moments saved together`} onPress={() => router.push('/memories')} />
           <UpdateRow icon="checkbox-outline" title="2do" detail={`${completed} of ${habits.length} completed by you`} onPress={() => router.push('/todo')} />
           <UpdateRow icon="gift-outline" title="Goodies" detail="See what arrived today" onPress={() => router.push('/goodies' as Href)} last />

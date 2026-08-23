@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   Keyboard,
   Platform,
   Pressable,
@@ -17,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useAuth } from '@/lib/auth';
@@ -97,14 +97,14 @@ export default function PickQueueScreen() {
       setOptions(['', '']);
       Keyboard.dismiss();
     } catch (reason) {
-      Alert.alert('Could not add this pick', userFacingError(reason, 'Please try again.'));
+      showDialog('Could not add this pick', userFacingError(reason, 'Please try again.'));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = (prompt: games.ChoicePrompt) => {
-    Alert.alert('Remove this pick?', 'Unused picks can be removed from the shared queue.', [
+    showDialog('Remove this pick?', 'Unused picks can be removed from the shared queue.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -114,7 +114,7 @@ export default function PickQueueScreen() {
             if (sync.mode === 'live') await games.deleteChoicePrompt(prompt.id);
             setPrompts((current) => current.filter((item) => item.id !== prompt.id));
           } catch (reason) {
-            Alert.alert('Could not remove this pick', userFacingError(reason, 'Please try again.'));
+            showDialog('Could not remove this pick', userFacingError(reason, 'Please try again.'));
           }
         },
       },
@@ -192,6 +192,7 @@ export default function PickQueueScreen() {
           {duplicateOption ? <Text variant="caption" color="partner">Each choice needs to be different.</Text> : null}
           <Button
             full
+            loading={busy}
             label={busy ? 'Adding…' : 'Add to Pick Together queue'}
             disabled={busy || !canAdd}
             onPress={add}

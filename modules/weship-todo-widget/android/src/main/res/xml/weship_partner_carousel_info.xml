@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:description="@string/weship_partner_widget_description"
+  android:previewLayout="@layout/weship_carousel_preview"
   android:initialLayout="@layout/weship_carousel_widget"
   android:minHeight="180dp"
   android:minWidth="180dp"

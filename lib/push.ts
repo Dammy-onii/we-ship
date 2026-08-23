@@ -92,7 +92,20 @@ async function currentDeviceToken(requestPermission: boolean): Promise<string | 
         ? await Notifications.requestPermissionsAsync()
         : existing;
   if (permission.status !== 'granted') return null;
-  return (await Notifications.getExpoPushTokenAsync({ projectId: id })).data;
+  try {
+    return (await Notifications.getExpoPushTokenAsync({ projectId: id })).data;
+  } catch (cause) {
+    // On Android this fails when the build carries no FCM credentials, and the
+    // underlying message is a Firebase stack trace. Reported as something the
+    // user can act on rather than as an unexplained failure.
+    if (!requestPermission) return null;
+    throw new Error(
+      Platform.OS === 'android'
+        ? 'This build cannot receive push yet — its Firebase credentials are missing.'
+        : 'This build could not register for push notifications.',
+      { cause },
+    );
+  }
 }
 
 export async function enablePushNotifications(userId: string) {
@@ -103,6 +116,9 @@ export async function enablePushNotifications(userId: string) {
   await configureNotificationSurfaces(Notifications);
   const token = await currentDeviceToken(true);
   if (!token) throw new Error('Notification permission was not granted.');
+  // Android push needs FCM credentials in the build. Without them Expo's token
+  // call fails with a Firebase stack trace, which the sanitiser flattens into
+  // an unhelpful generic message — so name the real cause here.
   const { error } = await requireSupabase().from('push_tokens').upsert(
     {
       user_id: userId,

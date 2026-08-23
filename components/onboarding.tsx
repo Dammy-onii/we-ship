@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bloom, Leaf, Sparkle } from '@/components/art/botanicals';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Slide = {
@@ -15,36 +15,61 @@ type Slide = {
   overline: string;
   title: string;
   body: string;
+  /** Named capabilities, listed rather than buried in prose. */
+  points?: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; detail: string }[];
   Art: (p: { size?: number; color?: string; opacity?: number }) => React.ReactElement;
 };
 
 /**
- * What someone needs to understand before they are asked for an email.
+ * Three slides: what it is, what is in it, and how to start.
  *
- * Deliberately short and concrete: what the app is, what the two of you do in
- * it, and the one thing that is different about it (nothing is public, and it
- * only works once two people are joined).
+ * Deliberately short and concrete. The middle slide lists the features by name
+ * because two of them — home-screen widgets and the Drive connection — are
+ * things nobody discovers on their own, and Drive in particular has to be
+ * granted before photos and videos work at all.
  */
 const SLIDES: Slide[] = [
   {
-    key: 'space',
+    key: 'overview',
     overline: 'WELCOME TO WESHIP',
     title: 'A private space for two',
-    body: 'Not a feed and not a group chat. One quiet place that only the two of you can see — photos, voice notes, and small things worth keeping.',
+    body: 'Not a feed and not a group chat. One quiet place for the two of you, with a lighter circle for friends alongside it. Nothing here is public, nothing is sold, and nothing is ever recommended to strangers.',
     Art: Leaf,
   },
   {
-    key: 'daily',
-    overline: 'EVERY DAY',
-    title: 'Something small to share',
-    body: 'A question a day, shared 2dos, and a streak that grows when you both show up. Enough to keep you close without becoming another chore.',
+    key: 'features',
+    overline: "WHAT'S INSIDE",
+    title: 'Small things, every day',
+    body: 'Enough to keep you close without becoming another chore.',
+    points: [
+      {
+        icon: 'gift-outline',
+        label: 'Goodies & Spotlight',
+        detail: 'Photos, videos, notes and voice notes, gathered in a gallery of your own.',
+      },
+      {
+        icon: 'grid-outline',
+        label: 'Home-screen widgets',
+        detail: 'Their photos and mood, your streak, and a nudge you can send without opening the app.',
+      },
+      {
+        icon: 'cloud-upload-outline',
+        label: 'Your own Google Drive',
+        detail: 'Photo and video originals are saved to your Drive, not ours. Connect it once and sharing just works.',
+      },
+      {
+        icon: 'checkbox-outline',
+        label: '2do, questions & games',
+        detail: 'Shared tasks, a question a day, and quick things to play together.',
+      },
+    ],
     Art: Sparkle,
   },
   {
-    key: 'friends',
-    overline: 'AND YOUR PEOPLE',
-    title: 'Friends, kept separate',
-    body: 'Connect with friends and see what they post on their board. Your shared space stays private — friends never see it.',
+    key: 'start',
+    overline: 'GETTING STARTED',
+    title: 'Three steps and you are in',
+    body: 'Create your account, pair with your partner using a six-character code, then connect Drive and turn on notifications. Home keeps a short list of anything still left to do, so nothing gets lost.',
     Art: Bloom,
   },
 ];
@@ -94,9 +119,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           setIndex(Math.round(event.nativeEvent.contentOffset.x / width))
         }>
         {SLIDES.map((slide) => (
-          <View key={slide.key} style={[styles.slide, { width }]}>
+          <ScrollView
+            key={slide.key}
+            style={{ width }}
+            contentContainerStyle={styles.slide}
+            showsVerticalScrollIndicator={false}>
             <View style={[styles.art, { backgroundColor: theme.primarySoft }]}>
-              <slide.Art size={54} color={theme.primaryDeep} />
+              <slide.Art size={slide.points ? 40 : 54} color={theme.primaryDeep} />
             </View>
             <Animated.View entering={FadeIn.duration(320)} style={styles.copy}>
               <Text variant="micro" color="textFaint">
@@ -106,8 +135,23 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               <Text variant="body" color="textSoft" style={styles.body}>
                 {slide.body}
               </Text>
+              {slide.points ? (
+                <View style={styles.points}>
+                  {slide.points.map((point) => (
+                    <View key={point.label} style={styles.point}>
+                      <View style={[styles.pointIcon, { backgroundColor: theme.surfaceAlt }]}>
+                        <Ionicons name={point.icon} size={16} color={theme.primaryDeep} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text variant="captionStrong">{point.label}</Text>
+                        <Text variant="caption" color="textFaint">{point.detail}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </Animated.View>
-          </View>
+          </ScrollView>
         ))}
       </ScrollView>
 
@@ -148,11 +192,26 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: Spacing.lg,
   },
-  slide: { flex: 1, paddingHorizontal: Spacing.lg, justifyContent: 'center', gap: Spacing.xl },
+  slide: {
+    flexGrow: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    justifyContent: 'center',
+    gap: Spacing.lg,
+  },
+  points: { gap: Spacing.md, marginTop: Spacing.xs },
+  point: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+  pointIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   art: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -44,6 +44,7 @@ export const partner: User = {
 
 export const space: Space = {
   id: 'space-1',
+  name: 'Our space',
   memberIds: [YOU_ID, PARTNER_ID],
   mode: 'distance',
   anniversary: '2023-11-04',
@@ -147,6 +148,9 @@ export const questionArchive: Question[] = [
   },
 ];
 
+/** Old enough that the missed-period tracker has something to show in demo mode. */
+const SEEDED_AT = daysAgo(30).toISOString();
+
 export const habits: Habit[] = [
   {
     id: 'h-check-in',
@@ -155,6 +159,7 @@ export const habits: Habit[] = [
     color: '#5C7F58',
     routine: 'daily',
     noteRequired: false,
+    createdAt: SEEDED_AT,
   },
   {
     id: 'h-highlight',
@@ -163,6 +168,7 @@ export const habits: Habit[] = [
     color: '#6C9A93',
     routine: 'daily',
     noteRequired: true,
+    createdAt: SEEDED_AT,
   },
   {
     id: 'h-quality-time',
@@ -171,6 +177,7 @@ export const habits: Habit[] = [
     color: '#CBA04E',
     routine: 'weekly',
     noteRequired: true,
+    createdAt: SEEDED_AT,
   },
   {
     id: 'h-kindness',
@@ -179,6 +186,7 @@ export const habits: Habit[] = [
     color: '#9DBCC7',
     routine: 'weekly',
     noteRequired: true,
+    createdAt: SEEDED_AT,
   },
   {
     id: 'h-memory',
@@ -187,6 +195,7 @@ export const habits: Habit[] = [
     color: '#D2848A',
     routine: 'monthly',
     noteRequired: true,
+    createdAt: SEEDED_AT,
   },
 ];
 

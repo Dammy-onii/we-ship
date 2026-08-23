@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useAuth } from '@/lib/auth';
@@ -41,9 +42,9 @@ export default function NotificationSettingsScreen() {
     try {
       await enablePushNotifications(auth.user.id);
       setEnabled(true);
-      Alert.alert('Notifications enabled', 'Partner updates can now reach this device.');
+      showDialog('Notifications enabled', 'Partner updates can now reach this device.');
     } catch (error) {
-      Alert.alert('Could not enable notifications', userFacingError(error, 'Try again on a physical device.'));
+      showDialog('Could not enable notifications', userFacingError(error, 'This device could not be registered for push.'));
     } finally {
       setBusy(false);
     }
@@ -56,7 +57,7 @@ export default function NotificationSettingsScreen() {
       await disablePushNotifications(auth.user.id);
       setEnabled(false);
     } catch (error) {
-      Alert.alert('Could not update notifications', userFacingError(error, 'Please try again.'));
+      showDialog('Could not update notifications', userFacingError(error, 'Please try again.'));
     } finally {
       setBusy(false);
     }

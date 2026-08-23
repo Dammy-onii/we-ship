@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { Radius, Shadow, Spacing, Typography } from '@/constants/theme';
@@ -17,6 +17,13 @@ type Props = {
   /** Trailing icon — use for forward/continue actions. */
   iconRight?: React.ReactNode;
   disabled?: boolean;
+  /**
+   * Shows a spinner in place of the leading icon and blocks further presses.
+   *
+   * A button whose work takes a moment and gives no sign of it reads as a
+   * button that did nothing, and gets pressed again.
+   */
+  loading?: boolean;
   style?: ViewStyle;
   full?: boolean;
   size?: 'md' | 'sm';
@@ -32,12 +39,15 @@ export function Button({
   tone = 'primary',
   icon,
   iconRight,
-  disabled,
+  disabled: disabledProp,
+  loading = false,
   style,
   full,
   size = 'md',
 }: Props) {
   const theme = useTheme();
+  // Loading implies disabled: the press is already in flight.
+  const disabled = disabledProp || loading;
   const scale = useSharedValue(1);
   const base = tone === 'primary' ? theme.primary : theme.partner;
   const soft = tone === 'primary' ? theme.primarySoft : theme.partnerSoft;
@@ -91,7 +101,7 @@ export function Button({
         style,
       ]}>
       <View style={styles.row}>
-        {icon}
+        {loading ? <ActivityIndicator size="small" color={fg} /> : icon}
         <Text style={[size === 'sm' ? Typography.captionStrong : Typography.bodyStrong, { color: fg }]}>
           {label}
         </Text>

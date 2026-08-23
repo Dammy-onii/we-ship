@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Modal,
   Platform,
   Pressable,
@@ -16,6 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Image } from 'expo-image';
+
 import { Bloom, Leaf, Sprig } from '@/components/art/botanicals';
 import { MomentTile } from '@/components/moment-tile';
 import { KeyboardAvoider } from '@/components/ui/keyboard-avoider';
@@ -23,6 +24,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
 import { Font, Radius, Spacing } from '@/constants/theme';
+import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useNativePickerAction } from '@/hooks/use-native-picker';
@@ -208,7 +210,7 @@ function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: ()
 
   const pick = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return Alert.alert('Photo access needed', 'Allow photo access to add a shared memory.');
+    if (!permission.granted) return showDialog('Photo access needed', 'Allow photo access to add a shared memory.');
     const result = await runPicker(() =>
       ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.9 }),
     );
@@ -236,7 +238,7 @@ function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: ()
       await sync.refresh();
       setTitle(''); setCaption(''); setAsset(undefined); onClose();
     } catch (error) {
-      Alert.alert('Could not save memory', userFacingError(error, 'Please try again.'));
+      showDialog('Could not save memory', userFacingError(error, 'Please try again.'));
     } finally { setBusy(false); setProgress(0); }
   };
 
@@ -249,9 +251,39 @@ function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: ()
             <View><Text variant="micro" color="textFaint">NEW MEMORY</Text><Text variant="title">Add a photo or video</Text></View>
             <Pressable onPress={onClose} style={[styles.closeButton, { backgroundColor: theme.surfaceAlt }]}><Ionicons name="close" size={20} color={theme.textSoft} /></Pressable>
           </View>
-          <Pressable onPress={pick} style={[styles.mediaChoice, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
-            <Ionicons name={asset?.type === 'video' ? 'videocam-outline' : 'images-outline'} size={28} color={theme.primaryDeep} />
-            <Text variant="bodyStrong">{asset ? asset.fileName ?? 'Media selected' : 'Choose from your phone'}</Text>
+          {/* Shows the picked media rather than only its filename — there was
+              no way to tell whether the right thing had been selected. */}
+          <Pressable
+            onPress={pick}
+            accessibilityRole="button"
+            accessibilityLabel={asset ? 'Change the selected media' : 'Choose media from your phone'}
+            style={[
+              asset ? styles.mediaPreview : styles.mediaChoice,
+              { backgroundColor: theme.surfaceAlt, borderColor: theme.line },
+            ]}>
+            {asset ? (
+              <>
+                <Image source={{ uri: asset.uri }} style={styles.mediaPreviewImage} contentFit="cover" />
+                <View style={[styles.mediaPreviewBar, { backgroundColor: theme.scrim }]}>
+                  <Ionicons
+                    name={asset.type === 'video' ? 'videocam' : 'image'}
+                    size={15}
+                    color="#FCFAF7"
+                  />
+                  <Text variant="caption" onPhoto numberOfLines={1} style={{ flex: 1 }}>
+                    {asset.fileName ?? (asset.type === 'video' ? 'Video' : 'Photo')}
+                  </Text>
+                  <Text variant="captionStrong" onPhoto>
+                    Change
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Ionicons name="images-outline" size={28} color={theme.primaryDeep} />
+                <Text variant="bodyStrong">Choose from your phone</Text>
+              </>
+            )}
           </Pressable>
           <TextInput value={title} onChangeText={setTitle} placeholder="Memory title" placeholderTextColor={theme.textFaint} selectionColor={theme.primary} style={[styles.editorInput, { color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }]} />
           <TextInput value={caption} onChangeText={setCaption} placeholder="Add a caption" placeholderTextColor={theme.textFaint} selectionColor={theme.primary} style={[styles.editorInput, { color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }]} />
@@ -262,7 +294,7 @@ function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: ()
               <Text variant="caption" color="textFaint">Originals stay in your own Google Drive. Connect Google in Profile → Connections.</Text>
             </View>
           </View>
-          <Button full label={busy ? `Uploading ${Math.round(progress * 100)}%` : 'Save memory'} disabled={busy || !asset || !title.trim() || sync.mode !== 'live'} onPress={save} />
+          <Button full loading={busy} label={busy ? `Uploading ${Math.round(progress * 100)}%` : 'Save memory'} disabled={!asset || !title.trim() || sync.mode !== 'live'} onPress={save} />
         </View>
       </KeyboardAvoider>
     </Modal>
@@ -460,6 +492,21 @@ const styles = StyleSheet.create({
   fields: { gap: Spacing.md },
   editorInput: { minHeight: 52, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.inset, paddingHorizontal: Spacing.md, fontFamily: Font.sans, fontSize: 16 },
   dateButton: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.inset, padding: Spacing.md },
+  mediaPreview: {
+    height: 200,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.inset,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  mediaPreviewImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  mediaPreviewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+  },
   mediaChoice: { minHeight: 82, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.inset, alignItems: 'center', justifyContent: 'center', gap: 5 },
   driveNotice: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.inset, padding: Spacing.md },
 });

@@ -1,5 +1,41 @@
 project_id = "we-ship"
 
+[auth]
+# Recovery, magic-link and confirmation emails all build their link from
+# `site_url`. It defaults to http://localhost:3000, which is why the reset mail
+# opened a page that does not exist on a phone. Weship has no website — the
+# link has to hand off to the app, which already consumes the token in
+# `lib/auth.tsx`.
+site_url = "weship://auth/callback"
+# `site_url` is only the fallback for links sent without an explicit redirect —
+# dashboard mail, mostly. The app always passes its own `redirectTo`, resolved
+# per platform in `lib/auth.tsx`, so local web testing keeps working alongside
+# the real app. Every form it can produce has to be listed here.
+additional_redirect_urls = [
+  "weship://auth/callback",
+  "weship://connections/google",
+  # `npx expo start --web`
+  "http://localhost:8081",
+  "http://localhost:8081/**",
+  "http://localhost:19006",
+  "http://localhost:19006/**",
+  # Expo Go / dev client, whose host and port vary by machine and tunnel.
+  "exp://**",
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+[auth.email]
+# Confirmation is deliberately off while the app is in testing.
+enable_confirmations = false
+# Pinned, not left to the CLI's defaults. `config push` fills in every value it
+# manages, and the defaults it would have applied here (`1s`, `otp_length = 6`)
+# silently replaced this project's `1m0s` and `8` — a one-second floor removes
+# the throttle on password-reset and magic-link mail entirely.
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
+
 [functions.google-oauth-callback]
 verify_jwt = false
 

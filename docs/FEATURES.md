@@ -32,10 +32,20 @@ Legend for v1 scope: ✅ in standalone v1 · 🔜 next phase · 🧊 later
 
 ## 2. Widget
 
-- **What:** One focused home-screen widget showing only the user's top incomplete shared 2do.
-- **Behavior:** Completing the item promotes the next incomplete task. Tapping opens 2do. No auth token is copied to widget storage.
-- **Platforms:** ✅ iOS TypeScript/SwiftUI widget through `expo-widgets`; ✅ Android `AppWidgetProvider` through the local Expo module. Both require a custom development/release build.
-- **Appearance:** Neutral, system-aware light/dark surfaces rather than the old green-tinted rotation.
+- **What:** Five widgets — Us, Friends, Presence, Quick send, and 2do.
+- **Us / Friends:** A full-bleed slideshow of one shared item at a time — photo, video or note — with the source, position, author and any ★ favourite in a scrim along the bottom. Android draws them with a `StackView`, which can be swiped by hand; arrows step it when there is more than one slide. iOS uses `Link` regions and ‹ › buttons, because WidgetKit has no gesture support inside a single widget.
+- **2do:** The whole shared list, scrollable, with a done/total count. Tapping a circle ticks that task off in place; a task that requires a completion note opens the app instead, since a widget cannot ask for text. Optimistic ticks are held per task id until the app's next snapshot confirms them.
+- **Presence / Quick send:** Their mood and one useful line; and three shortcuts into the composer.
+- **Platforms:** ✅ iOS TypeScript/SwiftUI widgets through `expo-widgets`; ✅ Android `AppWidgetProvider`s plus two `RemoteViewsService`s through the local Expo module. Both require a custom development/release build.
+- **Appearance:** Locked to the light palette on both platforms, copied by hand from `Palette.light` into `widgets/shared.ts` and `res/values/colors.xml`.
+- **Picker previews:** Every provider declares a `previewLayout`. The two collection-backed widgets point at static stand-ins, because the system picker does not bind a `RemoteViewsService` and previewing the real layout showed an empty card.
+
+### In-app alert sound
+- **What:** A toast that arrives while the app is open plays a sound, because the OS only sounds notifications delivered to a backgrounded app.
+- **Android:** Asks `RingtoneManager` for the user's own notification tone, so it matches every other notification on the phone and obeys notification volume, silent mode and Do Not Disturb.
+- **iOS:** The system tone for an incoming message. iOS gives an app no way to read the user's chosen notification sound outside a delivered notification, so this is the closest real system sound.
+- **No bundled audio.** Both paths play a sound the phone already makes. Nothing is shipped with the app; an in-app alert should never introduce a noise the device does not otherwise produce.
+- **Where neither exists** — web, Expo Go — the toast is silent.
 
 ---
 

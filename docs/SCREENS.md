@@ -109,4 +109,6 @@ Configured builds show the email/password or magic-link Auth gate, then direct u
 | Calendar import/create | `calendar` | ✅ configured; connected-account validation pending |
 | Notification settings | `notification-settings` | ✅ code; device credentials pending |
 | Friends | `friends` | 🧊 |
+| Friend profile | `friend/[id]` | ✅ code; device validation pending — who they are, whether they are paired, their gender, and their posts |
+| Google OAuth return | `connections/google` | ✅ redirects to Connections |
 | Auth gate | root provider | ✅ live |

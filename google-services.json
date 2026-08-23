@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "19082901144",
+    "project_id": "we-ship-1e689",
+    "storage_bucket": "we-ship-1e689.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:19082901144:android:974b20b9fdae727eb982ed",
+        "android_client_info": {
+          "package_name": "app.weship.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLZPVbNyFOd7d51uIkm9IIHFpe7vzvxRQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

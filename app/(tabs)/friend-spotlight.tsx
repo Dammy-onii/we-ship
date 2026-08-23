@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,8 +15,8 @@ import { Text } from '@/components/ui/text';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useFriends } from '@/lib/friends';
-import { friendPostToItem, type SpotlightItem } from '@/lib/spotlight-item';
-import { dayKeyForInstant, dayKeyIn, deviceTimezone } from '@/lib/time';
+import { friendPostToItem, groupByDay, type SpotlightItem } from '@/lib/spotlight-item';
+import { deviceTimezone } from '@/lib/time';
 import type { FriendPostKind } from '@/lib/types';
 
 type Filter = 'all' | FriendPostKind;
@@ -35,18 +35,21 @@ export default function FriendSpotlightScreen() {
   const router = useRouter();
   const { enabled, initialLoading, posts, friends, error, refresh } = useFriends();
   const [filter, setFilter] = useState<Filter>('all');
+  // `?person=` narrows the board to one friend, so "See their posts" in the
+  // friends list has somewhere real to go.
+  const { person } = useLocalSearchParams<{ person?: string }>();
+  const focused = friends.find((candidate) => candidate.id === person);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [composing, setComposing] = useState(false);
 
   const timezone = deviceTimezone();
-  const today = dayKeyIn(timezone);
   const visible = useMemo(() => {
-    const source = filter === 'all' ? posts : posts.filter((post) => post.kind === filter);
+    const byPerson = person ? posts.filter((post) => post.author.id === person) : posts;
+    const source = filter === 'all' ? byPerson : byPerson.filter((post) => post.kind === filter);
     return source.map(friendPostToItem);
-  }, [posts, filter]);
+  }, [posts, filter, person]);
 
-  const todays = visible.filter((item) => dayKeyForInstant(item.createdAt, timezone) === today);
-  const earlier = visible.filter((item) => dayKeyForInstant(item.createdAt, timezone) !== today);
+  const days = groupByDay(visible, timezone);
 
   const openViewer = (item: SpotlightItem) => {
     const position = visible.findIndex((candidate) => candidate.id === item.id);
@@ -71,8 +74,14 @@ export default function FriendSpotlightScreen() {
   return (
     <Screen gradient overlay={composeButton}>
       <AppHeader
-        title="Friends"
-        subtitle={friends.length ? `${friends.length} connected` : 'Your friends’ board'}
+        title={focused ? focused.displayName : 'Friends Spotlight'}
+        subtitle={
+          focused
+            ? 'Everything they have posted'
+            : friends.length
+              ? `Shared with your ${friends.length} friend${friends.length === 1 ? '' : 's'}`
+              : 'Shared with all your friends'
+        }
         action={
           enabled ? (
             <HeaderIconButton
@@ -160,22 +169,15 @@ export default function FriendSpotlightScreen() {
               />
             ) : (
               <>
-                {todays.length ? (
+                {days.map((day) => (
                   <SpotlightSection
-                    title="Today"
-                    count={todays.length}
-                    items={todays}
+                    key={day.key}
+                    title={day.title}
+                    count={day.items.length}
+                    items={day.items}
                     onOpen={openViewer}
                   />
-                ) : null}
-                {earlier.length ? (
-                  <SpotlightSection
-                    title="Earlier"
-                    count={earlier.length}
-                    items={earlier}
-                    onOpen={openViewer}
-                  />
-                ) : null}
+                ))}
               </>
             )}
           </>

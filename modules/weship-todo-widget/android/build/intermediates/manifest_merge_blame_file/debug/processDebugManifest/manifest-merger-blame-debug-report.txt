@@ -5,7 +5,7 @@
 5    <uses-sdk android:minSdkVersion="24" />
 6
 7    <application>
-7-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:2:3-14:17
+7-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:2:3-80:17
 8        <receiver
 8-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:3:5-13:16
 9            android:name="app.weship.todowidget.TopTodoWidgetProvider"
@@ -28,6 +28,125 @@
 18                android:resource="@xml/weship_todo_widget_info" />
 18-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:12:9-56
 19        </receiver>
-20    </application>
-21
-22</manifest>
+20        <receiver
+20-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:15:5-25:16
+21            android:name="app.weship.todowidget.PartnerCarouselProvider"
+21-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:16:7-46
+22            android:exported="true"
+22-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:17:7-30
+23            android:label="@string/weship_partner_widget_name" >
+23-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:18:7-57
+24            <intent-filter>
+24-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:7:7-9:23
+25                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+25-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:9-76
+25-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:17-73
+26            </intent-filter>
+27
+28            <meta-data
+28-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:10:7-12:59
+29                android:name="android.appwidget.provider"
+29-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:11:9-50
+30                android:resource="@xml/weship_partner_carousel_info" />
+30-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:12:9-56
+31        </receiver>
+32        <receiver
+32-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:27:5-37:16
+33            android:name="app.weship.todowidget.FriendsCarouselProvider"
+33-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:28:7-46
+34            android:exported="true"
+34-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:29:7-30
+35            android:label="@string/weship_friends_widget_name" >
+35-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:30:7-57
+36            <intent-filter>
+36-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:7:7-9:23
+37                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+37-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:9-76
+37-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:17-73
+38            </intent-filter>
+39
+40            <meta-data
+40-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:10:7-12:59
+41                android:name="android.appwidget.provider"
+41-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:11:9-50
+42                android:resource="@xml/weship_friends_carousel_info" />
+42-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:12:9-56
+43        </receiver>
+44        <receiver
+44-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:39:5-49:16
+45            android:name="app.weship.todowidget.PresenceWidgetProvider"
+45-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:40:7-45
+46            android:exported="true"
+46-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:41:7-30
+47            android:label="@string/weship_presence_widget_name" >
+47-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:42:7-58
+48            <intent-filter>
+48-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:7:7-9:23
+49                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+49-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:9-76
+49-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:17-73
+50            </intent-filter>
+51
+52            <meta-data
+52-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:10:7-12:59
+53                android:name="android.appwidget.provider"
+53-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:11:9-50
+54                android:resource="@xml/weship_presence_info" />
+54-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:12:9-56
+55        </receiver>
+56        <receiver
+56-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:51:5-61:16
+57            android:name="app.weship.todowidget.QuickSendWidgetProvider"
+57-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:52:7-46
+58            android:exported="true"
+58-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:53:7-30
+59            android:label="@string/weship_quick_widget_name" >
+59-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:54:7-55
+60            <intent-filter>
+60-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:7:7-9:23
+61                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+61-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:9-76
+61-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:8:17-73
+62            </intent-filter>
+63
+64            <meta-data
+64-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:10:7-12:59
+65                android:name="android.appwidget.provider"
+65-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:11:9-50
+66                android:resource="@xml/weship_quick_send_info" />
+66-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:12:9-56
+67        </receiver>
+68
+69        <!-- Widget button taps. Not exported: only this app may trigger them. -->
+70        <receiver
+70-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:64:5-66:34
+71            android:name="app.weship.todowidget.WidgetActionReceiver"
+71-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:65:7-43
+72            android:exported="false" />
+72-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:66:7-31
+73
+74        <!--
+75         Feeds the swipeable StackView carousels. The permission is required by
+76         the platform so only the launcher may bind to it.
+77        -->
+78        <service
+78-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:70:5-73:66
+79            android:name="app.weship.todowidget.CarouselRemoteViewsService"
+79-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:71:7-49
+80            android:exported="false"
+80-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:72:7-31
+81            android:permission="android.permission.BIND_REMOTEVIEWS" />
+81-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:73:7-63
+82
+83        <!-- Feeds the scrollable 2do list. -->
+84        <service
+84-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:76:5-79:66
+85            android:name="app.weship.todowidget.TodoListRemoteViewsService"
+85-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:77:7-49
+86            android:exported="false"
+86-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:78:7-31
+87            android:permission="android.permission.BIND_REMOTEVIEWS" />
+87-->/Users/damilola/Dev/we-ship/modules/weship-todo-widget/android/src/main/AndroidManifest.xml:79:7-63
+88    </application>
+89
+90</manifest>

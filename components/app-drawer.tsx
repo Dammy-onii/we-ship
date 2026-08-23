@@ -13,7 +13,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useMe } from '@/lib/store';
+import { useMe, useSpace } from '@/lib/store';
 
 type MenuItem = {
   label: string;
@@ -32,6 +32,7 @@ const MENU: MenuItem[] = [
 export function AppDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
   const me = useMe();
+  const space = useSpace();
   const pathname = usePathname();
   const router = useRouter();
   const longPressTriggered = useRef(false);
@@ -178,8 +179,8 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
 
       <View style={styles.footer}>
         <Leaf size={18} color={theme.primary} opacity={0.75} />
-        <Text variant="captionStrong" color="textSoft">
-          Weship
+        <Text variant="captionStrong" color="textSoft" numberOfLines={1}>
+          {space.name ?? 'Weship'}
         </Text>
       </View>
     </DrawerContentScrollView>

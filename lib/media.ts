@@ -1,4 +1,4 @@
-import { File, UploadType, type UploadProgress } from 'expo-file-system';
+import { Directory, File, Paths, UploadType, type UploadProgress } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { createVideoPlayer } from 'expo-video';
 import { Platform } from 'react-native';
@@ -67,6 +67,46 @@ export async function prepareMediaPreview(media: LocalMedia): Promise<PreparedPr
   return { uri: saved.uri, mimeType: 'image/jpeg', sizeBytes: previewSize };
 }
 
+/**
+ * Gives back a path `expo-file-system` can actually open.
+ *
+ * Android's photo picker hands back `content://` URIs, which `new File(uri)`
+ * reports as non-existent — so a perfectly valid selection failed with "the
+ * selected file is no longer available on this device". React Native's own
+ * networking stack can resolve a content URI, so the bytes are fetched through
+ * that and written into the cache, and the copy is uploaded instead.
+ */
+async function materializeLocalFile(uri: string): Promise<File> {
+  const direct = new File(uri);
+  if (direct.exists) return direct;
+
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error('The selected file could not be read. Please choose it again.');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!bytes.byteLength) {
+    throw new Error('The selected file could not be read. Please choose it again.');
+  }
+  const scratch = new Directory(Paths.cache, 'weship-uploads');
+  if (!scratch.exists) scratch.create({ intermediates: true });
+  // Named for the source so re-picking the same item reuses one cache entry
+  // rather than filling the cache with copies.
+  const copy = new File(scratch, `${hashUri(uri)}`);
+  if (copy.exists) copy.delete();
+  copy.create();
+  copy.write(bytes);
+  return copy;
+}
+
+/** Short, stable, filesystem-safe name for a source URI. */
+function hashUri(uri: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < uri.length; index += 1) {
+    hash ^= uri.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `u${(hash >>> 0).toString(36)}`;
+}
+
 export async function uploadLocalFile(
   uploadUrl: string,
   media: LocalMedia,
@@ -89,8 +129,7 @@ export async function uploadLocalFile(
     return parseUploadResult(body);
   }
 
-  const file = new File(media.uri);
-  if (!file.exists) throw new Error('The selected file is no longer available on this device.');
+  const file = await materializeLocalFile(media.uri);
   const result = await file.upload(uploadUrl, {
     httpMethod: 'PUT',
     uploadType: UploadType.BINARY_CONTENT,
@@ -123,6 +162,8 @@ export function localMediaSize(media: LocalMedia) {
   if (media.sizeBytes && media.sizeBytes > 0) return Math.round(media.sizeBytes);
   if (Platform.OS === 'web') return 0;
   const file = new File(media.uri);
+  // A content:// URI reports no size here; the upload path materialises it, and
+  // Drive is told the size it actually receives.
   return file.exists ? file.size : 0;
 }
 
@@ -133,13 +174,8 @@ export async function readLocalFileBytes(uri: string): Promise<ArrayBuffer> {
     if (!response.ok) throw new Error('The selected file is no longer available in this browser.');
     return response.arrayBuffer();
   }
-  try {
-    const file = new File(uri);
-    if (!file.exists) throw new Error();
-    return await file.arrayBuffer();
-  } catch {
-    throw new Error('The selected file is no longer available on this device. Please choose it again.');
-  }
+  const file = await materializeLocalFile(uri);
+  return file.arrayBuffer();
 }
 
 export function removeTemporaryPreview(uri: string | undefined) {

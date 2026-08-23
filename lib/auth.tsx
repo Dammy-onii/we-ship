@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Linking } from 'react-native';
+import * as ExpoLinking from 'expo-linking';
 import type { GenderKey } from './gender';
 
 
@@ -32,8 +33,29 @@ type AuthContextValue = {
     gender?: GenderKey;
   }) => Promise<AuthResult>;
   sendMagicLink: (email: string) => Promise<AuthResult>;
+  /** Emails a recovery link. Succeeds even for an unknown address, by design. */
+  sendPasswordReset: (email: string) => Promise<AuthResult>;
+  /** True between following a recovery link and choosing a new password. */
+  recovering: boolean;
+  updatePassword: (password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
 };
+
+/**
+ * Where an emailed auth link should come back to.
+ *
+ * Resolved per platform rather than hard-coded to `weship://`: on web that
+ * scheme opens nothing, so `npx expo start --web` could never finish a magic
+ * link or a password reset. `createURL` yields the dev server origin on web,
+ * the `exp://` host in Expo Go, and `weship://` in a real build — all three are
+ * on the redirect allow-list in `supabase/config.toml`.
+ *
+ * Supabase's own `site_url` stays `weship://auth/callback`, which is what mail
+ * sent from the dashboard (with no explicit redirect) uses.
+ */
+function authRedirectUrl() {
+  return ExpoLinking.createURL('/auth/callback');
+}
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -41,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(isBackendConfigured);
   const [error, setError] = useState<string>();
+  const [recovering, setRecovering] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -54,9 +77,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setLoading(false);
+      // A recovery link signs the user straight in, so without this the app
+      // would just open normally and never ask for the new password they came
+      // to set.
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true);
     });
 
     return () => {
@@ -130,14 +157,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return { error: 'Supabase is not configured.' };
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: 'weship://auth/callback' },
+      options: { emailRedirectTo: authRedirectUrl() },
     });
     return error
       ? { error: userFacingError(error, 'Could not send the sign-in link. Please try again.') }
       : { needsEmailConfirmation: true };
   }, []);
 
+  const sendPasswordReset = useCallback(async (email: string): Promise<AuthResult> => {
+    if (!supabase) return { error: 'Supabase is not configured.' };
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: authRedirectUrl(),
+    });
+    return error
+      ? { error: userFacingError(error, 'Could not send the reset link. Please try again.') }
+      : { needsEmailConfirmation: true };
+  }, []);
+
+  const updatePassword = useCallback(async (password: string): Promise<AuthResult> => {
+    if (!supabase) return { error: 'Supabase is not configured.' };
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { error: userFacingError(error, 'Could not update your password.') };
+    setRecovering(false);
+    return {};
+  }, []);
+
   const signOut = useCallback(async () => {
+    setRecovering(false);
     // Clear the cached Space first: it must never outlive the session that
     // produced it, or the next person to sign in on this device could see it.
     const { clearSnapshot } = await import('./offline-cache');
@@ -155,9 +201,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       sendMagicLink,
+      sendPasswordReset,
+      recovering,
+      updatePassword,
       signOut,
     }),
-    [error, loading, sendMagicLink, session, signIn, signOut, signUp],
+    [
+      error,
+      loading,
+      recovering,
+      sendMagicLink,
+      sendPasswordReset,
+      session,
+      signIn,
+      signOut,
+      signUp,
+      updatePassword,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -24,6 +24,8 @@ export type SpaceMode = 'together' | 'distance';
 
 export type Space = {
   id: ID;
+  /** What the pair called their space. Shown wherever the space is named. */
+  name?: string;
   memberIds: [ID, ID];
   mode: SpaceMode;
   anniversary?: ISODate;
@@ -113,6 +115,8 @@ export type Habit = {
   color: string;
   routine: TaskRoutine;
   noteRequired: boolean;
+  /** When the task started existing — nothing before it counts as missed. */
+  createdAt?: ISODateTime;
 };
 
 export type LogDay = {

@@ -11,6 +11,7 @@ import {
 import { AppState } from 'react-native';
 
 import { syncTopTodoWidget } from '@/widgets';
+import { findMissedPeriods, type CompletionRow } from './task-periods';
 import { useAuth } from './auth';
 import * as backend from './backend/repository';
 import type { MoodKey } from './moods';
@@ -60,6 +61,7 @@ type State = {
   archive: Question[];
   questionQueue: QuestionPrompt[];
   habits: Habit[];
+  completions: CompletionRow[];
   log: LogDay[];
   nudges: Nudge[];
   memories: MemoryItem[];
@@ -122,6 +124,7 @@ function initialState(): State {
     archive: seed.questionArchive,
     questionQueue: [],
     habits: seed.habits,
+    completions: [],
     log: seedLog(),
     nudges: seed.nudges,
     memories: seed.memories,
@@ -165,6 +168,7 @@ function unpairedState(me: User): State {
     archive: [],
     questionQueue: [],
     habits: [],
+    completions: [],
     log: [{ date: today, mood: {}, habits: {} }],
     nudges: [],
     memories: [],
@@ -397,6 +401,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [rawSpaceId, rawUserId, runRemote]);
 
   const toggleHabit = useCallback((habitId: string, note?: string) => {
+    // A task added moments ago still carries its local placeholder id while the
+    // insert is in flight. Sending that to Postgres fails the UUID cast, and the
+    // raw driver error surfaced to the user as `invalid input syntax for type
+    // uuid`. Ask them to wait rather than writing something that cannot land.
+    if (auth.configured && habitId.startsWith('h-')) {
+      setSyncError('Still saving that task — give it a moment, then tick it.');
+      return;
+    }
     const zone = myTimezone(state);
     const currentLog = state.log.find((day) => day.date === todayKey(zone)) ?? state.log.find((day) => day.date === CADENCE_DATE);
     const completed = !(currentLog?.habits[habitId]?.[YOU_ID] ?? false);
@@ -410,23 +422,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       space: bumpStreak(current.space, myTimezone(current)),
     }));
     runRemote(() => backend.setTaskComplete(habitId, completed, note, zone));
-  }, [rawSpaceId, runRemote, state.log, state.users]);
+  }, [auth.configured, rawSpaceId, runRemote, state.log, state.users]);
 
   const addTask = useCallback((input: { label: string; routine: TaskRoutine; noteRequired: boolean }) => {
     const label = input.label.trim();
     if (!label) return;
+    // Local id, swapped for the database's UUID once the insert lands. Ticking
+    // the box before then would otherwise send this straight to Postgres.
+    const placeholderId = `h-${Date.now()}`;
     setState((current) => ({
       ...current,
       habits: [...current.habits, {
-        id: `h-${Date.now()}`,
+        id: placeholderId,
         label,
         icon: '✓',
         color: ['#5F5B57', '#77736E', '#918C85'][current.habits.length % 3],
         routine: input.routine,
         noteRequired: input.noteRequired,
+        // Without this the missed-period tracker treats a task added just now
+        // as having existed all week, and reports days it was never missed.
+        createdAt: new Date().toISOString(),
       }],
     }));
-    runRemote(() => backend.addTask(rawSpaceId!, rawUserId!, input));
+    runRemote(async () => {
+      const id = await backend.addTask(rawSpaceId!, rawUserId!, input);
+      setState((current) => ({
+        ...current,
+        habits: current.habits.map((habit) => (habit.id === placeholderId ? { ...habit, id } : habit)),
+      }));
+    });
   }, [rawSpaceId, rawUserId, runRemote]);
 
   const deleteTask = useCallback((habitId: string) => {
@@ -580,6 +604,21 @@ function useStore(): Ctx {
 }
 
 export const useBackendStatus = () => useStore().sync;
+/**
+ * Periods each shared 2do went unfinished, newest first.
+ *
+ * Derived rather than stored: it is a pure function of the tasks and their
+ * completions, and keeping a second copy in state would only give it a way to
+ * disagree with the checkboxes.
+ */
+export function useMissedPeriods() {
+  const { habits, completions } = useStore();
+  return useMemo(
+    () => findMissedPeriods(habits, completions, YOU_ID, PARTNER_ID),
+    [habits, completions],
+  );
+}
+
 export const useSpace = () => useStore().space;
 export const useMe = () => useStore().users[YOU_ID];
 export const usePartner = () => useStore().users[PARTNER_ID];
