@@ -29,7 +29,9 @@ export const pushUnavailableReason = nativeUnavailableReason('Push notifications
 
 let cached: typeof NotificationsModule | null = null;
 let handlerInstalled = false;
-const PUSH_CHANNEL = 'weship-updates-v3';
+// Android channels are immutable after creation. v4 moves existing installs
+// off the earlier channel that may already have been persisted as silent.
+export const PUSH_CHANNEL = 'weship-updates-v4';
 const FRIEND_REQUEST_CATEGORY = 'friend_request';
 
 /** Loads expo-notifications only where it can survive being loaded. */
@@ -63,12 +65,13 @@ async function configureNotificationSurfaces(Notifications: typeof Notifications
     // A channel's sound cannot be changed after creation. Omitting `sound`
     // selects Android's default notification sound; passing the string
     // "default" is interpreted as a custom resource name by SDK 57 and emits
-    // a technical error toast. The v3 id also migrates installs that created
-    // the v2 channel with that invalid resource.
+    // a technical error toast. The v4 id also migrates installs whose existing
+    // v3 channel was created without a usable sound and cannot be repaired.
     await Notifications.setNotificationChannelAsync(PUSH_CHANNEL, {
       name: 'Weship updates',
       description: 'Partner, friend, Goodie, task, memory, calendar, and game updates.',
       importance: Notifications.AndroidImportance.HIGH,
+      enableVibrate: true,
       vibrationPattern: [0, 180, 120, 180],
       lightColor: '#77736E',
     });
@@ -158,6 +161,41 @@ export async function pushNotificationsEnabled(userId: string): Promise<boolean>
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data?.enabled === true;
+}
+
+/** Schedules a visible, audible local notification for device diagnostics. */
+export async function scheduleTestNotification() {
+  const Notifications = notifications();
+  if (!Notifications) throw new Error(pushUnavailableReason ?? 'Push notifications are unavailable here.');
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== 'granted') throw new Error('Enable notifications before running the test.');
+  await configureNotificationSurfaces(Notifications);
+  if (Platform.OS === 'android') {
+    const channel = await Notifications.getNotificationChannelAsync(PUSH_CHANNEL);
+    if (!channel || channel.sound === null) {
+      throw new Error(
+        'The Weship updates channel is muted in Android settings. Open Settings › Apps › Weship › Notifications › Weship updates and choose a sound.',
+      );
+    }
+    if (channel.importance < Notifications.AndroidImportance.DEFAULT) {
+      throw new Error(
+        'Android has the Weship updates channel set to Silent. Change it to Alert in the app notification settings.',
+      );
+    }
+  }
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Weship sound check',
+      body: 'Your notification sound is working.',
+      sound: 'default',
+      data: { url: '/notification-settings' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 2,
+      channelId: PUSH_CHANNEL,
+    },
+  });
 }
 
 function routeFromNotification(notification: NotificationsModule.Notification) {

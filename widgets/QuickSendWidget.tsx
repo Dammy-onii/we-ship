@@ -1,4 +1,4 @@
-import { HStack, Link, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { HStack, Image, Link, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   background,
   containerBackground,
@@ -6,6 +6,7 @@ import {
   font,
   foregroundStyle,
   frame,
+  lineLimit,
   padding,
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget, type WidgetEnvironment } from 'expo-widgets';
@@ -61,20 +62,40 @@ function QuickSendView(props: QuickSendWidgetProps, environment: WidgetEnvironme
   if (theme.compact) {
     return (
       <VStack
+        alignment="leading"
+        spacing={8}
         modifiers={[
           frame({ maxWidth: Infinity, maxHeight: Infinity }),
           padding({ all: 12 }),
           containerBackground(theme.background, 'widget'),
         ]}>
-        <Text modifiers={[font({ size: 10, weight: 'semibold' }), foregroundStyle(theme.secondary)]}>
-          {`SEND TO ${props.partnerName.toUpperCase()}`}
-        </Text>
+        <HStack spacing={6}>
+          <Image systemName="paperplane.fill" size={13} color={theme.accent} />
+          <Text modifiers={[font({ size: 9, weight: 'bold' }), foregroundStyle(theme.secondary), lineLimit(1)]}>
+            {`SEND TO ${props.partnerName.toUpperCase()}`}
+          </Text>
+        </HStack>
         <Spacer />
-        <Link
-          label="📷  Photo"
-          destination="weship://goodies?composer=photo"
-          modifiers={[font({ size: 15, weight: 'semibold' }), foregroundStyle(theme.text)]}
-        />
+        <Link destination="weship://goodies?composer=photo">
+          <HStack
+            spacing={8}
+            modifiers={[
+              frame({ maxWidth: Infinity, minHeight: 62 }),
+              padding({ horizontal: 10 }),
+              background(theme.photoFill),
+              clipShape('roundedRectangle', 16),
+            ]}>
+            <Image systemName="camera.fill" size={22} color={theme.accent} />
+            <VStack alignment="leading" spacing={0}>
+              <Text modifiers={[font({ size: 14, weight: 'bold' }), foregroundStyle(theme.text)]}>
+                Photo
+              </Text>
+              <Text modifiers={[font({ size: 9 }), foregroundStyle(theme.secondary)]}>Open camera</Text>
+            </VStack>
+            <Spacer />
+            <Image systemName="chevron.right" size={11} color={theme.secondary} />
+          </HStack>
+        </Link>
         <Spacer />
       </VStack>
     );
@@ -89,19 +110,42 @@ function QuickSendView(props: QuickSendWidgetProps, environment: WidgetEnvironme
         padding({ all: 14 }),
         containerBackground(theme.background, 'widget'),
       ]}>
-      <Text modifiers={[font({ size: 10, weight: 'semibold' }), foregroundStyle(theme.secondary)]}>
-        {`SEND TO ${props.partnerName.toUpperCase()}`}
-      </Text>
+      <HStack spacing={7}>
+        <Image systemName="paperplane.fill" size={14} color={theme.accent} />
+        <Text modifiers={[font({ size: 10, weight: 'bold' }), foregroundStyle(theme.text), lineLimit(1)]}>
+          {`SEND TO ${props.partnerName.toUpperCase()}`}
+        </Text>
+        <Spacer />
+        <Text modifiers={[font({ size: 8, weight: 'bold' }), foregroundStyle(theme.secondary)]}>
+          OPEN COMPOSER
+        </Text>
+      </HStack>
       <Spacer />
       <HStack spacing={8}>
-        <Action label="📷" caption="Photo" destination="weship://goodies?composer=photo" theme={theme} />
         <Action
-          label="🎙"
+          icon="camera.fill"
+          caption="Photo"
+          hint="Camera"
+          fill={theme.photoFill}
+          destination="weship://goodies?composer=photo"
+          theme={theme}
+        />
+        <Action
+          icon="mic.fill"
           caption="Voice"
+          hint="Record"
+          fill={theme.voiceFill}
           destination={`weship://goodies?composer=voice&record=${recordToken}`}
           theme={theme}
         />
-        <Action label="✎" caption="Note" destination="weship://goodies?composer=note" theme={theme} />
+        <Action
+          icon="note.text"
+          caption="Note"
+          hint="Write"
+          fill={theme.noteFill}
+          destination="weship://goodies?composer=note"
+          theme={theme}
+        />
       </HStack>
       <Spacer />
     </VStack>
@@ -109,13 +153,17 @@ function QuickSendView(props: QuickSendWidgetProps, environment: WidgetEnvironme
 }
 
 function Action({
-  label,
+  icon,
   caption,
+  hint,
+  fill,
   destination,
   theme,
 }: {
-  label: string;
+  icon: React.ComponentProps<typeof Image>['systemName'];
   caption: string;
+  hint: string;
+  fill: string;
   destination: string;
   theme: ReturnType<typeof widgetTheme>;
 }) {
@@ -126,13 +174,14 @@ function Action({
         spacing={3}
         modifiers={[
           frame({ maxWidth: Infinity, minHeight: 58 }),
-          background(theme.surface),
-          clipShape('roundedRectangle'),
+          background(fill),
+          clipShape('roundedRectangle', 16),
         ]}>
-        <Text modifiers={[font({ size: 20 })]}>{label}</Text>
-        <Text modifiers={[font({ size: 10, weight: 'semibold' }), foregroundStyle(theme.secondary)]}>
+        <Image systemName={icon} size={22} color={theme.accent} />
+        <Text modifiers={[font({ size: 10, weight: 'bold' }), foregroundStyle(theme.text)]}>
           {caption.toUpperCase()}
         </Text>
+        <Text modifiers={[font({ size: 8 }), foregroundStyle(theme.secondary)]}>{hint}</Text>
       </VStack>
     </Link>
   );

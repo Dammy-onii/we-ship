@@ -21,10 +21,8 @@ Deno.serve(async (request) => {
 
   try {
     const user = await authenticatedUser(request);
-    const spaceId = await userSpaceId(user.id);
     const input = await request.json();
     const action = String(input.action ?? '');
-    const target = parseTarget(input.target);
     const { accessToken } = await googleAccessToken(user.id);
 
     /*
@@ -47,6 +45,12 @@ Deno.serve(async (request) => {
         email: about?.user?.emailAddress ?? null,
       });
     }
+
+    // Every media mutation below is pair-scoped. Quota is account-scoped and
+    // intentionally returns above this point, so a connected but not-yet-paired
+    // user can still confirm that Drive is ready during setup.
+    const spaceId = await userSpaceId(user.id);
+    const target = parseTarget(input.target);
 
     if (action === 'delete') {
       const id = parseUuid(input.id, 'id');

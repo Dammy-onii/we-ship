@@ -10,6 +10,7 @@ import { MediaViewer } from '@/components/media-viewer';
 import { SpotlightSection } from '@/components/spotlight-grid';
 import { Button } from '@/components/ui/button';
 import { DataState } from '@/components/ui/data-state';
+import { EmptySpotlight } from '@/components/empty-spotlight';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
@@ -37,7 +38,11 @@ export default function FriendSpotlightScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   // `?person=` narrows the board to one friend, so "See their posts" in the
   // friends list has somewhere real to go.
-  const { person } = useLocalSearchParams<{ person?: string }>();
+  // `?item=` arrives from the Friends widget, which lands on the exact post
+  // rather than the top of the board. Remembered once dismissed so closing the
+  // viewer does not immediately reopen it on the same param.
+  const { person, item: requestedItem } = useLocalSearchParams<{ person?: string; item?: string }>();
+  const [dismissedRequest, setDismissedRequest] = useState<string>();
   const focused = friends.find((candidate) => candidate.id === person);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [composing, setComposing] = useState(false);
@@ -54,6 +59,17 @@ export default function FriendSpotlightScreen() {
   const openViewer = (item: SpotlightItem) => {
     const position = visible.findIndex((candidate) => candidate.id === item.id);
     if (position >= 0) setViewerIndex(position);
+  };
+
+  const requestIndex =
+    requestedItem && requestedItem !== dismissedRequest
+      ? visible.findIndex((candidate) => candidate.id === requestedItem)
+      : -1;
+  const activeIndex = viewerIndex ?? (requestIndex >= 0 ? requestIndex : null);
+
+  const closeViewer = () => {
+    setViewerIndex(null);
+    if (requestedItem) setDismissedRequest(requestedItem);
   };
 
   const composeButton = enabled ? (
@@ -162,10 +178,11 @@ export default function FriendSpotlightScreen() {
                 <Button label="Find people" variant="soft" onPress={() => router.push('/friends')} />
               </View>
             ) : !visible.length ? (
-              <DataState
-                icon="sparkles-outline"
+              <EmptySpotlight
                 title={filter === 'all' ? 'Nothing on the board yet' : 'Nothing here yet'}
-                detail="Post the first one with the button below."
+                detail="Post the first one with the button below. Friend posts clear themselves after two days."
+                sampleNote="Finally tried that place on the corner. Worth the queue."
+                sampleAuthor={friends[0]?.displayName ?? 'A friend'}
               />
             ) : (
               <>
@@ -186,8 +203,8 @@ export default function FriendSpotlightScreen() {
 
       <FriendComposer visible={composing} onClose={() => setComposing(false)} />
 
-      {viewerIndex !== null ? (
-        <MediaViewer items={visible} startIndex={viewerIndex} onClose={() => setViewerIndex(null)} />
+      {activeIndex !== null ? (
+        <MediaViewer items={visible} startIndex={activeIndex} onClose={closeViewer} />
       ) : null}
     </Screen>
   );

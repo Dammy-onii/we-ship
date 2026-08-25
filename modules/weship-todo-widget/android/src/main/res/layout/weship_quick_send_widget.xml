@@ -1,28 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Three distinct composer shortcuts with real vector icons and useful labels. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/weship_quick_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:orientation="vertical"
-  android:gravity="center_vertical"
-  android:padding="14dp"
+  android:padding="12dp"
   android:background="@drawable/weship_widget_background">
-
-  <TextView
-    android:id="@+id/weship_quick_label"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:maxLines="1"
-    android:ellipsize="end"
-    android:textSize="11sp"
-    android:textStyle="bold"
-    android:textColor="@color/weship_widget_secondary" />
 
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="10dp"
     android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <ImageView
+      android:layout_width="20dp"
+      android:layout_height="20dp"
+      android:src="@drawable/weship_icon_send"
+      android:contentDescription="@string/weship_quick_open_composer" />
+
+    <TextView
+      android:id="@+id/weship_quick_label"
+      android:layout_width="0dp"
+      android:layout_weight="1"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="7dp"
+      android:maxLines="1"
+      android:ellipsize="end"
+      android:text="@string/weship_quick_preview_label"
+      android:textSize="11sp"
+      android:textStyle="bold"
+      android:textColor="@color/weship_widget_text" />
+
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="6dp"
+      android:letterSpacing="0.06"
+      android:text="@string/weship_quick_open_composer"
+      android:textSize="8sp"
+      android:textStyle="bold"
+      android:textColor="@color/weship_widget_secondary" />
+  </LinearLayout>
+
+  <!-- FrameLayout, not Space: RemoteViews inflates only an allow-listed set of
+       view classes and Space is not one of them. -->
+  <FrameLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1" />
+
+  <LinearLayout
+    android:id="@+id/weship_quick_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="9dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
     android:baselineAligned="false">
 
     <LinearLayout
@@ -32,21 +67,35 @@
       android:layout_height="wrap_content"
       android:orientation="vertical"
       android:gravity="center"
-      android:paddingTop="12dp"
-      android:paddingBottom="12dp"
-      android:background="@drawable/weship_widget_button">
+      android:padding="7dp"
+      android:background="@drawable/weship_quick_photo_button">
       <ImageView
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:id="@+id/weship_quick_photo_icon"
+        android:layout_width="27dp"
+        android:layout_height="27dp"
         android:src="@drawable/weship_icon_camera"
         android:contentDescription="@string/weship_quick_photo" />
       <TextView
-        android:layout_width="wrap_content"
+        android:id="@+id/weship_quick_photo_label"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:text="@string/weship_quick_photo"
         android:textSize="10sp"
         android:textStyle="bold"
+        android:textColor="@color/weship_widget_text" />
+      <TextView
+        android:id="@+id/weship_quick_photo_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/weship_quick_photo_hint"
+        android:textSize="9sp"
         android:textColor="@color/weship_widget_secondary" />
     </LinearLayout>
 
@@ -55,24 +104,38 @@
       android:layout_width="0dp"
       android:layout_weight="1"
       android:layout_height="wrap_content"
-      android:layout_marginStart="8dp"
+      android:layout_marginStart="12dp"
       android:orientation="vertical"
       android:gravity="center"
-      android:paddingTop="12dp"
-      android:paddingBottom="12dp"
-      android:background="@drawable/weship_widget_button">
+      android:padding="7dp"
+      android:background="@drawable/weship_quick_voice_button">
       <ImageView
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:id="@+id/weship_quick_voice_icon"
+        android:layout_width="27dp"
+        android:layout_height="27dp"
         android:src="@drawable/weship_icon_mic"
         android:contentDescription="@string/weship_quick_voice" />
       <TextView
-        android:layout_width="wrap_content"
+        android:id="@+id/weship_quick_voice_label"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:text="@string/weship_quick_voice"
         android:textSize="10sp"
         android:textStyle="bold"
+        android:textColor="@color/weship_widget_text" />
+      <TextView
+        android:id="@+id/weship_quick_voice_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/weship_quick_voice_hint"
+        android:textSize="9sp"
         android:textColor="@color/weship_widget_secondary" />
     </LinearLayout>
 
@@ -81,25 +144,44 @@
       android:layout_width="0dp"
       android:layout_weight="1"
       android:layout_height="wrap_content"
-      android:layout_marginStart="8dp"
+      android:layout_marginStart="12dp"
       android:orientation="vertical"
       android:gravity="center"
-      android:paddingTop="12dp"
-      android:paddingBottom="12dp"
-      android:background="@drawable/weship_widget_button">
+      android:padding="7dp"
+      android:background="@drawable/weship_quick_note_button">
       <ImageView
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:id="@+id/weship_quick_note_icon"
+        android:layout_width="27dp"
+        android:layout_height="27dp"
         android:src="@drawable/weship_icon_note"
         android:contentDescription="@string/weship_quick_note" />
       <TextView
-        android:layout_width="wrap_content"
+        android:id="@+id/weship_quick_note_label"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:text="@string/weship_quick_note"
         android:textSize="10sp"
         android:textStyle="bold"
+        android:textColor="@color/weship_widget_text" />
+      <TextView
+        android:id="@+id/weship_quick_note_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/weship_quick_note_hint"
+        android:textSize="9sp"
         android:textColor="@color/weship_widget_secondary" />
     </LinearLayout>
   </LinearLayout>
+
+  <FrameLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1" />
 </LinearLayout>

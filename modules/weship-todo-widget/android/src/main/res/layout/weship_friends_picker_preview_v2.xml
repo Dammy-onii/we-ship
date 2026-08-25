@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget picker preview. Self-contained on purpose.
+
+  These files previously held a one-line <include> pointing at the real layout.
+  The launcher resolves a preview in its own process, and the indirection did
+  not survive the crossing: the picker rendered the WRONG widget's preview —
+  Friends showed Quick send, Presence showed 2do — and Quick send failed
+  outright with "Couldn't add widget". The `_v2` name is what busts a launcher's
+  cached preview id after an update; the wrapper never needed to exist.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/weship_widget_preview_ground">
+
+  <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="top|start"
+    android:layout_margin="10dp"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp"
+    android:background="@drawable/weship_widget_chip"
+    android:text="@string/weship_friends_widget_name"
+    android:textSize="9sp"
+    android:textStyle="bold"
+    android:letterSpacing="0.08"
+    android:textColor="@color/weship_widget_on_scrim" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom"
+    android:orientation="vertical"
+    android:background="@color/weship_widget_scrim"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="9dp"
+    android:paddingBottom="12dp">
+
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:maxLines="1"
+      android:ellipsize="end"
+      android:text="@string/weship_friends_preview_caption"
+      android:textSize="12sp"
+      android:textColor="@color/weship_widget_on_scrim" />
+
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:text="@string/weship_friends_preview_author"
+      android:textSize="10sp"
+      android:textStyle="bold"
+      android:letterSpacing="0.06"
+      android:textColor="@color/weship_widget_on_scrim" />
+  </LinearLayout>
+</FrameLayout>

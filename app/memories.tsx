@@ -32,6 +32,7 @@ import { useAuth } from '@/lib/auth';
 import * as repository from '@/lib/backend/repository';
 import { useBackendStatus, useMemories, useMoments, useSpace, YOU_ID } from '@/lib/store';
 import { relativeDay } from '@/lib/time';
+import { useGoogleConnection } from '@/lib/use-google-connection';
 import type { MemoryItem } from '@/lib/types';
 
 export default function MemoriesScreen() {
@@ -197,9 +198,11 @@ export default function MemoriesScreen() {
 
 function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useTheme();
+  const router = useRouter();
   const auth = useAuth();
   const space = useSpace();
   const sync = useBackendStatus();
+  const { driveConnected } = useGoogleConnection();
   const [title, setTitle] = useState('');
   const [caption, setCaption] = useState('');
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset>();
@@ -207,12 +210,19 @@ function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: ()
   const [progress, setProgress] = useState(0);
 
   const runPicker = useNativePickerAction();
+  const driveReady = sync.mode === 'live' && driveConnected === true;
 
   const pick = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return showDialog('Photo access needed', 'Allow photo access to add a shared memory.');
     const result = await runPicker(() =>
-      ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.9 }),
+      ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        // A memory is one photo or video; see the note in app/goodies.tsx.
+        allowsMultipleSelection: false,
+        selectionLimit: 1,
+        quality: 0.9,
+      }),
     );
     if (!result.canceled) setAsset(result.assets[0]);
   };
@@ -254,7 +264,7 @@ function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: ()
           {/* Shows the picked media rather than only its filename — there was
               no way to tell whether the right thing had been selected. */}
           <Pressable
-            onPress={pick}
+            onPress={driveReady ? pick : () => router.push('/connections')}
             accessibilityRole="button"
             accessibilityLabel={asset ? 'Change the selected media' : 'Choose media from your phone'}
             style={[
@@ -281,20 +291,29 @@ function MemoryMediaEditor({ visible, onClose }: { visible: boolean; onClose: ()
             ) : (
               <>
                 <Ionicons name="images-outline" size={28} color={theme.primaryDeep} />
-                <Text variant="bodyStrong">Choose from your phone</Text>
+                <Text variant="bodyStrong">
+                  {driveReady ? 'Choose from your phone' : 'Connect Google Drive first'}
+                </Text>
               </>
             )}
           </Pressable>
           <TextInput value={title} onChangeText={setTitle} placeholder="Memory title" placeholderTextColor={theme.textFaint} selectionColor={theme.primary} style={[styles.editorInput, { color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }]} />
           <TextInput value={caption} onChangeText={setCaption} placeholder="Add a caption" placeholderTextColor={theme.textFaint} selectionColor={theme.primary} style={[styles.editorInput, { color: theme.text, backgroundColor: theme.surface, borderColor: theme.line }]} />
           <View style={[styles.driveNotice, { backgroundColor: theme.surfaceAlt }]}>
-            <Ionicons name="logo-google" size={20} color={theme.primaryDeep} />
+            <Ionicons name={driveReady ? 'cloud-done-outline' : 'logo-google'} size={20} color={theme.primaryDeep} />
             <View style={{ flex: 1 }}>
-              <Text variant="bodyStrong">Original stored in your Google Drive</Text>
-              <Text variant="caption" color="textFaint">Originals stay in your own Google Drive. Connect Google in Profile → Connections.</Text>
+              <Text variant="bodyStrong">
+                {driveReady ? 'Original stored in your Google Drive' : 'Google Drive connection required'}
+              </Text>
+              <Text variant="caption" color="textFaint">
+                {driveReady
+                  ? 'Weship keeps only a small private preview; the original uses your Drive.'
+                  : 'Connect Google before sharing a photo or video so Weship can store its original in your Drive.'}
+              </Text>
             </View>
+            {!driveReady ? <Button label="Connect" size="sm" variant="soft" onPress={() => router.push('/connections')} /> : null}
           </View>
-          <Button full loading={busy} label={busy ? `Uploading ${Math.round(progress * 100)}%` : 'Save memory'} disabled={!asset || !title.trim() || sync.mode !== 'live'} onPress={save} />
+          <Button full loading={busy} label={busy ? `Uploading ${Math.round(progress * 100)}%` : 'Save memory'} disabled={!asset || !title.trim() || !driveReady} onPress={save} />
         </View>
       </KeyboardAvoider>
     </Modal>

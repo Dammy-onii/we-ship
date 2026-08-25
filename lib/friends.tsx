@@ -14,10 +14,7 @@ import { useAuth } from './auth';
 import * as friendsBackend from './backend/friends';
 import {
   fetchPersonalNotifications,
-  findContactsOnWeship,
   markPersonalNotificationsRead,
-  scanContacts,
-  type ContactScanResult,
   type PersonalNotification,
 } from './contacts';
 import { pruneExpiredFriendMedia } from './media-cache';
@@ -56,9 +53,6 @@ type FriendsCtx = {
   }) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
   /** People from the phone's address book who already have an account. */
-  contactMatches: PersonSummary[];
-  scanningContacts: boolean;
-  scanContacts: () => Promise<ContactScanResult>;
   notifications: PersonalNotification[];
   unreadNotifications: number;
   markNotificationsRead: () => Promise<void>;
@@ -81,8 +75,6 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
   const [friends, setFriends] = useState<PersonSummary[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [posts, setPosts] = useState<FriendPost[]>([]);
-  const [contactMatches, setContactMatches] = useState<PersonSummary[]>([]);
-  const [scanningContacts, setScanningContacts] = useState(false);
   const [notifications, setNotifications] = useState<PersonalNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -94,18 +86,15 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       if (!enabled || !userId) return;
       if (!options?.silent) setLoading(true);
       try {
-        const [graph, board, inbox, contacts] = await Promise.all([
+        const [graph, board, inbox] = await Promise.all([
           friendsBackend.fetchFriendGraph(userId),
           friendsBackend.fetchFriendPosts(userId),
           fetchPersonalNotifications(),
-          // Already-synced hashes only — this never touches the address book.
-          findContactsOnWeship().catch(() => [] as PersonSummary[]),
         ]);
         setFriends(graph.friends);
         setRequests(graph.requests);
         setPosts(board);
         setNotifications(inbox);
-        setContactMatches(contacts);
         setError(undefined);
         setHydrated(true);
       } catch (cause) {
@@ -186,20 +175,6 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     [mutate],
   );
 
-  const runContactScan = useCallback(async (): Promise<ContactScanResult> => {
-    if (!enabled) return { ok: false, reason: 'Sign in to match your contacts.' };
-    setScanningContacts(true);
-    try {
-      const result = await scanContacts();
-      if (result.ok) setContactMatches(result.matches);
-      return result;
-    } catch (cause) {
-      return { ok: false, reason: userFacingError(cause, 'Could not read contacts.') };
-    } finally {
-      setScanningContacts(false);
-    }
-  }, [enabled]);
-
   /*
    * Stable on purpose — no `notifications` dependency.
    *
@@ -253,9 +228,6 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     unfriend,
     post,
     deletePost,
-    contactMatches,
-    scanningContacts,
-    scanContacts: runContactScan,
     notifications,
     unreadNotifications,
     markNotificationsRead,
@@ -278,9 +250,6 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     unfriend,
     post,
     deletePost,
-    contactMatches,
-    scanningContacts,
-    runContactScan,
     notifications,
     unreadNotifications,
     markNotificationsRead,

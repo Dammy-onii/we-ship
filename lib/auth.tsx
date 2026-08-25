@@ -57,6 +57,20 @@ function authRedirectUrl() {
   return ExpoLinking.createURL('/auth/callback');
 }
 
+/**
+ * Where a recovery email sends the user back to.
+ *
+ * Carries our own `type=recovery` marker rather than relying on Supabase to
+ * add one. Under the PKCE flow every emailed link comes back as `?code=…`
+ * regardless of what it was for, and exchanging that code fires `SIGNED_IN` —
+ * never `PASSWORD_RECOVERY`. So a reset link signed the user in and dropped
+ * them on Home, behaving exactly like a magic link and never offering the new
+ * password they came to set.
+ */
+function recoveryRedirectUrl() {
+  return ExpoLinking.createURL('/auth/callback', { queryParams: { type: 'recovery' } });
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -98,16 +112,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const consumeAuthUrl = async (url: string) => {
       const parsed = new URL(url);
+      const fragment = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+      // Our own marker on the query string; Supabase's `type` in the fragment
+      // covers the implicit flow, which older links still use.
+      const isRecovery =
+        parsed.searchParams.get('type') === 'recovery' || fragment.get('type') === 'recovery';
+
       const code = parsed.searchParams.get('code');
       if (code) {
-        await client.auth.exchangeCodeForSession(code);
+        const { error } = await client.auth.exchangeCodeForSession(code);
+        // Previously unchecked, so an expired or already-used link looked like
+        // it had worked and left the user on the sign-in screen with no reason.
+        if (error) throw error;
+        if (isRecovery) setRecovering(true);
         return;
       }
-      const fragment = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+
       const accessToken = fragment.get('access_token');
       const refreshToken = fragment.get('refresh_token');
       if (accessToken && refreshToken) {
-        await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        const { error } = await client.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) throw error;
+        if (isRecovery) setRecovering(true);
       }
     };
 
@@ -167,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendPasswordReset = useCallback(async (email: string): Promise<AuthResult> => {
     if (!supabase) return { error: 'Supabase is not configured.' };
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: authRedirectUrl(),
+      redirectTo: recoveryRedirectUrl(),
     });
     return error
       ? { error: userFacingError(error, 'Could not send the reset link. Please try again.') }

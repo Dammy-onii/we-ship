@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-  <solid android:color="@color/weship_widget_control_fill" />
-  <corners android:radius="999dp" />
-</shape>

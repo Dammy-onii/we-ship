@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget picker preview. Self-contained on purpose.
+
+  These files previously held a one-line <include> pointing at the real layout.
+  The launcher resolves a preview in its own process, and the indirection did
+  not survive the crossing: the picker rendered the WRONG widget's preview —
+  Friends showed Quick send, Presence showed 2do — and Quick send failed
+  outright with "Couldn't add widget". The `_v2` name is what busts a launcher's
+  cached preview id after an update; the wrapper never needed to exist.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:padding="12dp"
+  android:background="@drawable/weship_widget_background">
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:baselineAligned="false">
+
+    <TextView
+      android:layout_width="38dp"
+      android:layout_height="38dp"
+      android:gravity="center"
+      android:background="@drawable/weship_widget_mood_badge"
+      android:text="@string/weship_presence_preview_emoji"
+      android:textSize="20sp" />
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_weight="1"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="10dp"
+      android:orientation="vertical">
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/weship_presence_preview_name"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:textColor="@color/weship_widget_text" />
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:letterSpacing="0.08"
+        android:text="@string/weship_presence_right_now"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:textColor="@color/weship_widget_accent" />
+    </LinearLayout>
+
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="6dp"
+      android:paddingStart="9dp"
+      android:paddingEnd="9dp"
+      android:paddingTop="5dp"
+      android:paddingBottom="5dp"
+      android:background="@drawable/weship_widget_streak"
+      android:text="@string/weship_presence_preview_streak"
+      android:maxLines="1"
+      android:textSize="11sp"
+      android:textStyle="bold"
+      android:textColor="@color/weship_widget_on_scrim" />
+  </LinearLayout>
+
+  <TextView
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:layout_marginTop="8dp"
+    android:background="@drawable/weship_widget_panel"
+    android:gravity="center_vertical"
+    android:paddingStart="11dp"
+    android:paddingEnd="11dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
+    android:maxLines="3"
+    android:ellipsize="end"
+    android:text="@string/weship_presence_preview_status"
+    android:textSize="14sp"
+    android:textColor="@color/weship_widget_text" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:baselineAligned="false">
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_weight="1"
+      android:layout_height="wrap_content"
+      android:orientation="vertical">
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:text="@string/weship_presence_their_time"
+        android:letterSpacing="0.06"
+        android:textSize="8sp"
+        android:textStyle="bold"
+        android:textColor="@color/weship_widget_secondary" />
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/weship_presence_preview_time"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="@color/weship_widget_text" />
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_weight="1"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="12dp"
+      android:orientation="vertical">
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:text="@string/weship_presence_next_todo"
+        android:letterSpacing="0.06"
+        android:textSize="8sp"
+        android:textStyle="bold"
+        android:textColor="@color/weship_widget_secondary" />
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/weship_presence_preview_task"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="@color/weship_widget_text" />
+    </LinearLayout>
+  </LinearLayout>
+</LinearLayout>

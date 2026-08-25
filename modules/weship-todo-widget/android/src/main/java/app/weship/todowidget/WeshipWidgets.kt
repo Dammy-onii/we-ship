@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.widget.RemoteViews
 
 /** Every widget this app offers, and how to draw each one. */
@@ -30,7 +31,7 @@ internal object WeshipWidgets {
       // changed — redrawing the host layout alone leaves stale content.
       when (provider) {
         PartnerCarouselProvider::class.java, FriendsCarouselProvider::class.java ->
-          manager.notifyAppWidgetViewDataChanged(ids, R.id.weship_carousel_stack)
+          manager.notifyAppWidgetViewDataChanged(ids, R.id.weship_carousel)
         TopTodoWidgetProvider::class.java ->
           manager.notifyAppWidgetViewDataChanged(ids, R.id.weship_widget_list)
       }
@@ -46,6 +47,50 @@ internal object WeshipWidgets {
       QuickSendWidgetProvider::class.java -> renderQuickSend(context, manager, id)
     }
   }
+
+  /**
+   * The widget's current size in dp, as the launcher reports it.
+   *
+   * Widgets are not laid out by us and cannot query their own width, so the
+   * only way to adapt is to read the size the host last negotiated and redraw.
+   * `onAppWidgetOptionsChanged` calls back into `render` whenever it changes.
+   */
+  private fun sizeDp(manager: AppWidgetManager, id: Int): Pair<Int, Int> {
+    val options = manager.getAppWidgetOptions(id)
+    val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+    val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+    return width to height
+  }
+
+  /**
+   * Below this, only the headline row fits.
+   *
+   * Deliberately low. The value it is compared against is
+   * OPTION_APPWIDGET_MIN_HEIGHT, which is the *floor* the host guarantees, not
+   * the height the widget actually got — a two-cell-tall widget reports about
+   * 110dp while occupying far more. A threshold of 140 therefore hid Presence's
+   * footer and Quick send's "send to" line on widgets with ample room, leaving a
+   * dead gap where the content should have been. 100 only trips on a genuinely
+   * single-cell widget, which is the case this was written for.
+   */
+  private const val SHORT_DP = 100
+
+  /** Three cells tall. Above this a tile has room for a third line. */
+  private const val TALL_DP = 200
+
+  /*
+   * Tile-width thresholds, measured against the *reported* width, which runs
+   * smaller than the real one. A 3-cell quick send reports ~180dp, leaving
+   * ~46dp a tile — so a threshold of 54 hid the captions on a widget that had
+   * plenty of room for them. These are set against what the host actually
+   * reports, not against the geometry the widget ends up with.
+   */
+
+  /** Narrowest tile that can hold its one-word caption without truncating. */
+  private const val TILE_LABEL_DP = 40
+
+  /** Narrowest tile that can hold the caption *and* its hint underneath. */
+  private const val TILE_HINT_DP = 62
 
   private fun renderTodo(context: Context, manager: AppWidgetManager, id: Int) {
     val tasks = WidgetStore.tasks(context)
@@ -102,13 +147,13 @@ internal object WeshipWidgets {
       // factory across every placed copy and they all show the same source.
       data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
     }
-    views.setRemoteAdapter(R.id.weship_carousel_stack, intent)
-    views.setEmptyView(R.id.weship_carousel_stack, R.id.weship_carousel_empty)
+    views.setRemoteAdapter(R.id.weship_carousel, intent)
+    views.setEmptyView(R.id.weship_carousel, R.id.weship_carousel_empty)
 
-    // A StackView is a real swipe surface: this is what makes the carousel
-    // draggable by hand rather than only auto-advancing.
+    // A flat AdapterViewFlipper shows one edge-to-edge slide. RemoteViews does
+    // not expose a horizontal drag gesture for it, so paging uses the arrows.
     views.setPendingIntentTemplate(
-      R.id.weship_carousel_stack,
+      R.id.weship_carousel,
       openApp(
         context,
         if (friends) "weship://friend-spotlight" else "weship://spotlight",
@@ -117,32 +162,29 @@ internal object WeshipWidgets {
       )
     )
     views.setTextViewText(
-      R.id.weship_carousel_empty_text,
+      R.id.weship_carousel_empty,
       context.getString(
         if (friends) R.string.weship_carousel_empty_friends else R.string.weship_carousel_empty
       )
-    )
-    // The empty state is the only thing on screen when there is nothing to
-    // show, so it has to be tappable itself — the stack behind it is not.
-    views.setOnClickPendingIntent(
-      R.id.weship_carousel_empty,
-      openApp(context, if (friends) "weship://friends" else "weship://goodies", id)
     )
 
     /*
      * Arrows, and whether to show them at all.
      *
-     * A single slide has nothing to swipe to and nothing to advance to, which
-     * read as a carousel that was simply broken. With one item the controls are
-     * hidden rather than left there doing nothing.
+     * A single slide has nothing to advance to, which read as a carousel that
+     * was simply broken, so the controls are hidden rather than left doing
+     * nothing. An empty deck is not one of those cases: the factory stands in
+     * two placeholder slides, so the arrows work there too and the widget
+     * demonstrates what it is for.
      */
-    val navigable = slides.size > 1
+    val count = if (slides.isEmpty()) CarouselRemoteViewsService.PLACEHOLDER_COUNT else slides.size
+    val navigable = count > 1
     views.setViewVisibility(
       R.id.weship_carousel_controls,
       if (navigable) android.view.View.VISIBLE else android.view.View.GONE
     )
     if (navigable) {
-      views.setTextViewText(R.id.weship_carousel_counter, "${slides.size}")
+      views.setTextViewText(R.id.weship_carousel_counter, "$count")
       views.setOnClickPendingIntent(
         R.id.weship_carousel_next,
         action(context, WidgetActionReceiver.ACTION_CAROUSEL_NEXT, key, id)
@@ -154,7 +196,7 @@ internal object WeshipWidgets {
     }
 
     manager.updateAppWidget(id, views)
-    manager.notifyAppWidgetViewDataChanged(id, R.id.weship_carousel_stack)
+    manager.notifyAppWidgetViewDataChanged(id, R.id.weship_carousel)
   }
 
   /**
@@ -165,13 +207,19 @@ internal object WeshipWidgets {
    * would appear to do nothing.
    */
   fun step(context: Context, provider: Class<out AppWidgetProvider>, forward: Boolean) {
+    val key = if (provider == PartnerCarouselProvider::class.java) "partnerSlides" else "friendSlides"
+    WidgetStore.setCarouselOffset(
+      context,
+      key,
+      WidgetStore.carouselOffset(context, key) + if (forward) 1 else -1,
+    )
+
+    // Redraw for the new counter, then tell the adapter its data moved — that
+    // second call is what actually changes the slide.
     val manager = AppWidgetManager.getInstance(context)
-    manager.getAppWidgetIds(ComponentName(context, provider)).forEach { id ->
-      val views = RemoteViews(context.packageName, R.layout.weship_carousel_widget)
-      if (forward) views.showNext(R.id.weship_carousel_stack)
-      else views.showPrevious(R.id.weship_carousel_stack)
-      manager.partiallyUpdateAppWidget(id, views)
-    }
+    val ids = manager.getAppWidgetIds(ComponentName(context, provider))
+    ids.forEach { render(context, manager, it, provider) }
+    manager.notifyAppWidgetViewDataChanged(ids, R.id.weship_carousel)
   }
 
   private fun renderPresence(context: Context, manager: AppWidgetManager, id: Int) {
@@ -179,16 +227,20 @@ internal object WeshipWidgets {
     val views = RemoteViews(context.packageName, R.layout.weship_presence_widget)
     if (presence == null) {
       views.setTextViewText(R.id.weship_presence_name, context.getString(R.string.weship_presence_empty))
-      views.setTextViewText(R.id.weship_presence_mood, "")
-      views.setTextViewText(R.id.weship_presence_meta, "")
-      views.setViewVisibility(R.id.weship_presence_task, android.view.View.GONE)
+      views.setTextViewText(R.id.weship_presence_emoji, "♡")
+      views.setTextViewText(R.id.weship_presence_mood, "Open Weship to connect your shared space.")
+      views.setTextViewText(R.id.weship_presence_meta_label, "WESHIP")
+      views.setTextViewText(R.id.weship_presence_meta, "OPEN APP")
+      views.setTextViewText(R.id.weship_presence_detail_label, "TOGETHER")
+      views.setTextViewText(R.id.weship_presence_task, "START HERE")
       views.setViewVisibility(R.id.weship_presence_streak, android.view.View.GONE)
     } else {
       views.setTextViewText(R.id.weship_presence_name, presence.optString("name"))
+      views.setTextViewText(R.id.weship_presence_emoji, presence.optString("moodEmoji"))
       val status = presence.optString("statusText").takeIf { it.isNotEmpty() }
       views.setTextViewText(
         R.id.weship_presence_mood,
-        "${presence.optString("moodEmoji")}  ${status ?: presence.optString("mood")}"
+        status ?: presence.optString("mood")
       )
 
       // Falls through the same way the iOS widget does: their clock is only
@@ -197,16 +249,26 @@ internal object WeshipWidgets {
       val clock = presence.optString("localTime").takeIf { it.isNotEmpty() && it != "null" }
       val exchange = presence.optString("lastExchange").takeIf { it.isNotEmpty() }
       views.setTextViewText(
+        R.id.weship_presence_meta_label,
+        context.getString(
+          if (clock != null) R.string.weship_presence_their_time else R.string.weship_presence_latest
+        )
+      )
+      views.setTextViewText(
         R.id.weship_presence_meta,
-        (clock ?: exchange ?: presence.optString("lastSeen")).uppercase()
+        clock ?: exchange ?: presence.optString("lastSeen")
       )
 
       val task = presence.optString("pendingTask").takeIf { it.isNotEmpty() }
-      views.setTextViewText(R.id.weship_presence_task, task?.let { "○  $it" }.orEmpty())
-      views.setViewVisibility(
-        R.id.weship_presence_task,
-        if (task == null) android.view.View.GONE else android.view.View.VISIBLE
+      val question = WidgetStore.snapshot(context).optJSONObject("streak")
+      val answered = listOf("youAnswered", "partnerAnswered").count { question?.optBoolean(it) == true }
+      views.setTextViewText(
+        R.id.weship_presence_detail_label,
+        context.getString(
+          if (task != null) R.string.weship_presence_next_todo else R.string.weship_presence_daily_question
+        )
       )
+      views.setTextViewText(R.id.weship_presence_task, task ?: "$answered/2 answered")
 
       val streak = WidgetStore.snapshot(context).optJSONObject("streak")?.optInt("count") ?: 0
       views.setTextViewText(R.id.weship_presence_streak, if (streak > 0) "🔥 $streak" else "")
@@ -215,6 +277,16 @@ internal object WeshipWidgets {
         if (streak > 0) android.view.View.VISIBLE else android.view.View.GONE
       )
     }
+    /*
+     * The footer carries their local time and your next 2do — useful at three
+     * cells, and the first thing to drop at two, where it pushed the mood panel
+     * down to nothing.
+     */
+    val (_, presenceHeightDp) = sizeDp(manager, id)
+    if (presenceHeightDp < SHORT_DP) {
+      views.setViewVisibility(R.id.weship_presence_footer, android.view.View.GONE)
+    }
+
     views.setOnClickPendingIntent(R.id.weship_presence_root, openApp(context, "weship://", id))
     manager.updateAppWidget(id, views)
   }
@@ -237,6 +309,57 @@ internal object WeshipWidgets {
       if (partner.isNullOrEmpty()) context.getString(R.string.weship_quick_label_generic)
       else context.getString(R.string.weship_quick_label, partner.uppercase())
     )
+
+    /*
+     * Responsive in both axes.
+     *
+     * One hard rule learned the hard way: OPTION_APPWIDGET_MIN_WIDTH is the
+     * *minimum* size the host promises, not the size the widget actually got.
+     * It is fine for deciding what to SHOW and useless for deciding how big to
+     * DRAW. An earlier version divided it across three tiles and pinned their
+     * height to the result, which collapsed the whole widget into a strip. The
+     * tiles are weighted again and size themselves; only visibility and
+     * padding are driven from the reported size.
+     */
+    val (widthDp, heightDp) = sizeDp(manager, id)
+    val tileWidthDp = (widthDp - 24 - 16) / 3
+
+    val labels = if (tileWidthDp >= TILE_LABEL_DP) android.view.View.VISIBLE
+      else android.view.View.GONE
+    views.setViewVisibility(R.id.weship_quick_photo_label, labels)
+    views.setViewVisibility(R.id.weship_quick_voice_label, labels)
+    views.setViewVisibility(R.id.weship_quick_note_label, labels)
+
+    // The hint is the first thing to go: it is the least load-bearing line in
+    // the tile, and it needs both room to read and room to stack.
+    val hints = if (tileWidthDp >= TILE_HINT_DP && heightDp >= TALL_DP)
+      android.view.View.VISIBLE else android.view.View.GONE
+    views.setViewVisibility(R.id.weship_quick_photo_hint, hints)
+    views.setViewVisibility(R.id.weship_quick_voice_hint, hints)
+    views.setViewVisibility(R.id.weship_quick_note_hint, hints)
+
+    views.setViewVisibility(
+      R.id.weship_quick_label,
+      if (heightDp >= SHORT_DP) android.view.View.VISIBLE else android.view.View.GONE
+    )
+
+    /*
+     * Tile padding tracks the tile's width so the icon keeps proportional air
+     * around it instead of sitting in a fixed 7dp well that looks cramped when
+     * wide and crowded when narrow. `setViewPadding` takes pixels, so the dp
+     * has to be converted against the display density.
+     */
+    val density = context.resources.displayMetrics.density
+    // Kept tight. Side padding competes directly with the caption for width,
+    // and "PHOTO" truncating to "PHO…" costs more than the breathing room buys.
+    val sidePx = ((tileWidthDp * 0.07f).coerceIn(4f, 9f) * density).toInt()
+    // Taller than it is wide: a tile whose padding is square reads as cramped,
+    // because the icon and its caption stack vertically and need the room in
+    // that axis, not beside them.
+    val topPx = ((tileWidthDp * 0.22f).coerceIn(10f, 26f) * density).toInt()
+    listOf(R.id.weship_quick_photo, R.id.weship_quick_voice, R.id.weship_quick_note)
+      .forEach { tile -> views.setViewPadding(tile, sidePx, topPx, sidePx, topPx) }
+
     views.setOnClickPendingIntent(
       R.id.weship_quick_photo,
       openApp(context, "weship://goodies?composer=photo", id)
@@ -286,6 +409,22 @@ internal object WeshipWidgets {
 abstract class WeshipWidgetProvider : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
     ids.forEach { WeshipWidgets.render(context, manager, it, javaClass) }
+  }
+
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    manager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: Bundle,
+  ) {
+    // Samsung and several third-party launchers keep the initial layout until
+    // the first resize/options callback. Always replace it with live data.
+    WeshipWidgets.render(context, manager, appWidgetId, javaClass)
+  }
+
+  override fun onRestored(context: Context, oldWidgetIds: IntArray, newWidgetIds: IntArray) {
+    val manager = AppWidgetManager.getInstance(context)
+    newWidgetIds.forEach { WeshipWidgets.render(context, manager, it, javaClass) }
   }
 }
 

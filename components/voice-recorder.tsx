@@ -44,7 +44,8 @@ export function VoiceRecorder({
   autoStartRequest,
   maxSeconds = 120,
 }: {
-  onSend: (uri: string, durationSeconds: number) => void | Promise<void>;
+  /** Return false when delivery failed so the take remains available to retry. */
+  onSend: (uri: string, durationSeconds: number) => void | boolean | Promise<void | boolean>;
   sending?: boolean;
   /** A changing value auto-starts recording once, for the drawer's hold-to-record. */
   autoStartRequest?: string;
@@ -149,8 +150,8 @@ export function VoiceRecorder({
     // send as two separate deliberate steps.
     const captured = recording ? await stop() : recordedUri ? { uri: recordedUri, seconds: recordedDuration } : undefined;
     if (!captured) return;
-    await onSend(captured.uri, captured.seconds);
-    reset();
+    const sent = await onSend(captured.uri, captured.seconds);
+    if (sent !== false) reset();
   };
 
   const dotStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));

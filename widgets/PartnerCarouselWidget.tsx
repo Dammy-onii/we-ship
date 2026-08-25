@@ -1,11 +1,14 @@
 import { Button, HStack, Image, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   containerBackground,
+  aspectRatio,
+  clipped,
   font,
   foregroundStyle,
   frame,
   lineLimit,
   padding,
+  resizable,
   widgetURL,
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget, type WidgetEnvironment } from 'expo-widgets';
@@ -71,7 +74,12 @@ export function CarouselView(
         // `uiImage` takes a local file path; a widget cannot follow a signed URL.
         <Image
           uiImage={slide.imageUri}
-          modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}
+          modifiers={[
+            resizable(),
+            aspectRatio({ contentMode: 'fill' }),
+            frame({ maxWidth: Infinity, maxHeight: Infinity }),
+            clipped(),
+          ]}
         />
       ) : (
         <VStack

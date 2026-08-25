@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +9,7 @@ import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
+import { useFriends } from '@/lib/friends';
 import { useWidgetData } from '@/lib/store';
 import { requestWidgetPin, WIDGET_KINDS } from '@/widgets';
 
@@ -31,12 +33,9 @@ const CATALOG: WidgetCard[] = [
     name: 'Us',
     blurb: 'A slideshow of the photos, videos and notes the two of you have shared.',
     details: [
-      'One item at a time, filling the whole widget. Your last 12 photos, videos and notes.',
-      'Anything your partner favourites for you leads the slideshow, marked with a star.',
-      'Moves on its own through the day. On Android you can swipe it; on iOS, tap the ‹ › arrows — Apple does not allow swiping inside a widget.',
-      'Tapping opens that exact item full screen, not the top of the gallery.',
-      'To favourite something for them, press and hold it in Spotlight.',
-      'Tip: put Us and Friends in the same stack to swipe between them.',
+      'One edge-to-edge item at a time from your latest 12 shares.',
+      'Use ‹ › to browse; it also advances during the day.',
+      'Tap the item to open it full screen.',
     ],
     needsPartner: true,
     icon: 'images-outline',
@@ -46,11 +45,9 @@ const CATALOG: WidgetCard[] = [
     name: 'Friends',
     blurb: 'The same slideshow, filled with what your friends have posted.',
     details: [
-      'The most recent post from each friend — one each, so nobody crowds out the rest.',
-      'Reshuffled once a day, so the same person is not permanently on top.',
-      'Your own posts are left out. This one is for seeing other people.',
-      'Friend photos are kept on your phone for two days to save space, so older ones drop out of the slideshow on their own.',
-      'Empty until you have friends — tap it to find people you already know.',
+      'One recent post per friend, reshuffled daily.',
+      'Photos, video covers and notes fill the same flat frame.',
+      'Use ‹ › to browse; tap to open that post.',
     ],
     icon: 'planet-outline',
   },
@@ -59,11 +56,9 @@ const CATALOG: WidgetCard[] = [
     name: 'Presence',
     blurb: 'Their mood, and one line worth knowing underneath it.',
     details: [
-      'Their current mood, and whatever they typed as their status.',
-      'Long distance: their local time, so you know whether it is a good moment to call.',
-      'Same timezone: their clock would just be yours, so it shows the last thing you sent each other instead.',
-      'On the medium and large sizes it also shows your next unfinished 2do.',
-      'Works on the lock screen as a single line. Tapping opens Weship.',
+      'Their mood, status and useful local-time context.',
+      'Medium sizes also show your next unfinished 2do.',
+      'Tap anywhere to open Weship.',
     ],
     needsPartner: true,
     icon: 'person-circle-outline',
@@ -74,11 +69,8 @@ const CATALOG: WidgetCard[] = [
     name: 'Quick send',
     blurb: 'One tap from your home screen to sending a photo, a voice note or a note.',
     details: [
-      'Three buttons: photo, voice, note. Each opens the composer already on the right one.',
-      'The voice button starts recording the moment the app opens, so a memo is two taps.',
-      'Opens the app on purpose — a widget cannot reach the camera or microphone by itself.',
-      'On iOS the small size shows the photo button only; medium and large show all three. Android always shows all three.',
-      'Your streak now lives on the Presence widget.',
+      'Photo, voice and note shortcuts open the right composer.',
+      'Voice starts recording as the app opens.',
     ],
     needsPartner: true,
     icon: 'flash-outline',
@@ -86,7 +78,12 @@ const CATALOG: WidgetCard[] = [
   {
     kind: 'todo',
     name: '2do',
-    blurb: 'Your next incomplete shared 2do. Tap the circle to tick it off.',
+    blurb: 'Four shared tasks at a glance, with the rest one gesture or tap away.',
+    details: [
+      'Android shows about four rows at its normal size and scrolls through the full list.',
+      'Tap a circle on Android to complete it; tasks requiring a note open in Weship.',
+      'iOS shows up to four rows and opens the full list when tapped.',
+    ],
     icon: 'checkbox-outline',
     interactive: true,
   },
@@ -136,31 +133,23 @@ export default function WidgetsScreen() {
         <Text variant="display">Weship, at a glance</Text>
         <Text variant="body" color="textSoft">
           {supported
-            ? 'Tap any widget to add it. Every widget supports the Home Screen and compatible Lock Screens.'
+            ? 'Preview each layout here, then tap Add. Home-screen widgets use the same content and proportions.'
             : 'Widgets live on your phone’s Home Screen and compatible Lock Screens. This is what you can add.'}
         </Text>
       </View>
 
       <View style={styles.list}>
         {available.map((item) => (
-          <Pressable
+          <View
             key={item.kind}
-            onPress={() => add(item)}
-            disabled={Boolean(adding)}
-            accessibilityRole="button"
-            accessibilityLabel={`Add the ${item.name} widget`}
-            style={({ pressed }) => [
+            style={[
               styles.card,
               { backgroundColor: theme.surface, borderColor: theme.line },
-              pressed && { opacity: 0.85 },
             ]}>
-            {/*
-              * Header row, then full-width copy beneath it. The description
-              * used to share a row with the thumbnail and the add button, so
-              * every line broke after three or four words.
-              */}
             <View style={styles.cardHead}>
-              <WidgetThumbnail item={item} />
+              <View style={[styles.cardIcon, { backgroundColor: theme.primarySoft }]}>
+                <Ionicons name={item.icon} size={19} color={theme.primaryDeep} />
+              </View>
               <View style={styles.cardTitle}>
                 <Text variant="bodyStrong">{item.name}</Text>
                 <View style={styles.tagRow}>
@@ -170,12 +159,28 @@ export default function WidgetsScreen() {
                   {item.needsPartner ? <Tag label="Needs a partner" /> : null}
                 </View>
               </View>
-              <Ionicons
-                name={adding === item.kind ? 'ellipsis-horizontal' : 'add-circle'}
-                size={24}
-                color={supported ? theme.primary : theme.disabledText}
-              />
+              <Pressable
+                onPress={() => add(item)}
+                disabled={Boolean(adding)}
+                accessibilityRole="button"
+                accessibilityLabel={`Add the ${item.name} widget`}
+                style={({ pressed }) => [
+                  styles.addButton,
+                  { backgroundColor: theme.primarySoft },
+                  pressed && { opacity: 0.7 },
+                ]}>
+                <Ionicons
+                  name={adding === item.kind ? 'ellipsis-horizontal' : 'add'}
+                  size={17}
+                  color={supported ? theme.primaryDeep : theme.disabledText}
+                />
+                <Text variant="captionStrong" color={supported ? 'primaryDeep' : 'textFaint'}>
+                  Add
+                </Text>
+              </Pressable>
             </View>
+
+            <WidgetPreview item={item} />
 
             <Text variant="caption" color="textSoft" style={styles.blurb}>
               {item.blurb}
@@ -193,7 +198,7 @@ export default function WidgetsScreen() {
                 ))}
               </View>
             ) : null}
-          </Pressable>
+          </View>
         ))}
       </View>
 
@@ -208,41 +213,134 @@ export default function WidgetsScreen() {
  * A miniature of the real widget.
  *
  * An Ionicon told you nothing about what you were about to put on your home
- * screen. These mirror each widget's actual layout, drawn from the same data
- * the widget receives, so the card and the thing you add look alike.
+ * screen. These mirror each widget's actual proportions and hierarchy; the
+ * carousels use current account media when available and representative copy
+ * otherwise, so the card and the thing you add look alike without being empty.
  */
-function WidgetThumbnail({ item }: { item: WidgetCard }) {
+function WidgetPreview({ item }: { item: WidgetCard }) {
   const theme = useTheme();
   const data = useWidgetData();
+  const { posts } = useFriends();
 
   if (item.kind === 'partner-carousel' || item.kind === 'friends-carousel') {
     const friendsKind = item.kind === 'friends-carousel';
-    const image = friendsKind ? undefined : data.goodies.find((g) => g.kind === 'photo')?.uri;
-    // White chrome reads over a photo and disappears over the pale empty
-    // ground, so the overlay follows whichever is actually behind it.
-    const chrome = image ? theme.onPrimary : theme.textFaint;
+    const source = friendsKind
+      ? posts.find((post) => !post.mine && (post.kind === 'photo' || post.kind === 'video' || post.kind === 'note'))
+      : data.goodies.find((goodie) => goodie.kind === 'photo' || goodie.kind === 'video' || goodie.kind === 'note');
+    const image = source && source.kind !== 'note' ? source.uri : undefined;
+    const note = source?.text || (friendsKind ? 'A little window into their day.' : 'Somewhere worth remembering.');
     return (
-      <View style={[styles.thumb, { backgroundColor: theme.surfaceSunk }]}>
+      <View style={[styles.carouselPreview, { backgroundColor: theme.surfaceSunk }]}>
+        <LinearGradient
+          colors={friendsKind ? ['#8DA2A8', '#47585E'] : ['#C69B7D', '#704936']}
+          style={StyleSheet.absoluteFill}
+        />
         {image ? (
           <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        ) : source?.kind === 'note' ? (
+          <View style={[styles.notePreview, { backgroundColor: theme.bg }]}>
+            <Text variant="serif" numberOfLines={5}>{note}</Text>
+          </View>
         ) : null}
-        <View style={styles.thumbTop}>
-          <Text variant="micro" style={{ color: chrome, fontSize: 7 }}>
-            {friendsKind ? 'FRIENDS' : 'US'}
-          </Text>
-          <Text variant="micro" style={{ color: chrome, fontSize: 7 }}>1/12</Text>
+        <View style={styles.previewTop}>
+          <View style={styles.previewChip}>
+            <Text variant="micro" style={styles.previewChipText}>
+              {friendsKind ? 'WESHIP FRIENDS' : 'WESHIP US'}
+            </Text>
+          </View>
+          <Text variant="micro" style={styles.previewCount}>1/6</Text>
         </View>
-        {!image ? <Ionicons name={item.icon} size={18} color={theme.textFaint} /> : null}
-        <View style={styles.thumbArrows}>
-          <Text variant="micro" style={{ color: chrome, fontSize: 9 }}>‹ ›</Text>
+        <View style={styles.previewFooter}>
+          <View style={{ flex: 1 }}>
+            <Text variant="caption" style={styles.previewCaption} numberOfLines={1}>
+              {note}
+            </Text>
+            <Text variant="micro" style={styles.previewAuthor}>
+              {friendsKind ? 'YOUR FRIEND' : 'YOU'}
+            </Text>
+          </View>
+          <View style={styles.previewArrows}>
+            <Text variant="title" style={styles.previewArrow}>‹</Text>
+            <Text variant="title" style={styles.previewArrow}>›</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (item.kind === 'presence') {
+    return (
+      <View style={[styles.presencePreview, { backgroundColor: theme.bg }]}>
+        <View style={styles.presenceHead}>
+          <View style={styles.moodBadge}><Text variant="title">☀️</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text variant="title">Riri</Text>
+            <Text variant="micro" color="primaryDeep">RIGHT NOW</Text>
+          </View>
+          <View style={[styles.streakBadge, { backgroundColor: theme.primaryDeep }]}>
+            <Text variant="micro" style={{ color: '#FCFAF7' }}>🔥 12</Text>
+          </View>
+        </View>
+        <View style={[styles.statusPanel, { backgroundColor: theme.surface, borderColor: theme.line }]}>
+          <Text variant="bodyStrong">Feeling calm and taking it slow.</Text>
+        </View>
+        <View style={styles.presenceDetails}>
+          <PreviewInfo label="THEIR TIME" value="8:42 PM" />
+          <PreviewInfo label="NEXT 2DO" value="Plan Friday dinner" />
+        </View>
+      </View>
+    );
+  }
+
+  if (item.kind === 'quick-send') {
+    return (
+      <View style={[styles.widePreview, { backgroundColor: theme.bg }]}>
+        <View style={styles.quickHead}>
+          <Ionicons name="paper-plane" size={15} color={theme.primaryDeep} />
+          <Text variant="micro" style={{ flex: 1 }}>SEND TO RIRI</Text>
+          <Text variant="micro" color="textSoft">OPEN COMPOSER</Text>
+        </View>
+        <View style={styles.quickActions}>
+          {[
+            ['camera', 'PHOTO', 'Camera', '#E2ECE4'],
+            ['mic', 'VOICE', 'Record', '#EEDFD9'],
+            ['document-text', 'NOTE', 'Write', '#ECE6D2'],
+          ].map(([icon, label, hint, fill]) => (
+            <View key={label} style={[styles.quickAction, { backgroundColor: fill }]}>
+              <Ionicons name={icon as React.ComponentProps<typeof Ionicons>['name']} size={24} color={theme.primaryDeep} />
+              <Text variant="micro">{label}</Text>
+              <Text variant="micro" color="textSoft">{hint}</Text>
+            </View>
+          ))}
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.thumb, { backgroundColor: theme.primarySoft }]}>
-      <Ionicons name={item.icon} size={22} color={theme.primaryDeep} />
+    <View style={[styles.todoPreview, { backgroundColor: theme.bg }]}>
+      <View style={styles.previewRow}>
+        <Text variant="micro" color="textSoft">WESHIP 2DO</Text>
+        <Text variant="captionStrong" color="primaryDeep">0/4</Text>
+      </View>
+      {['Post on X or LinkedIn', 'Clinic plan', 'Book the train', 'Pick date-night film'].map((label) => (
+        <View key={label} style={[styles.todoRow, { borderTopColor: theme.line }]}>
+          <Ionicons name="ellipse-outline" size={17} color={theme.primaryDeep} />
+          <View style={{ flex: 1 }}>
+            <Text variant="bodyStrong" numberOfLines={1}>{label}</Text>
+            <Text variant="micro" color="textFaint">WEEKLY</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function PreviewInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text variant="micro" color="textSoft" numberOfLines={1}>{label}</Text>
+      <Text variant="captionStrong" numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -262,23 +360,6 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.lg, gap: Spacing.lg },
   intro: { gap: Spacing.sm, paddingTop: Spacing.sm },
   list: { gap: Spacing.md },
-  thumb: {
-    width: 54,
-    height: 54,
-    borderRadius: Radius.chip,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbTop: {
-    position: 'absolute',
-    top: 4,
-    left: 5,
-    right: 5,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  thumbArrows: { position: 'absolute', bottom: 3, right: 5 },
   details: { gap: 7, marginTop: 2 },
   detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   detailText: { flex: 1, lineHeight: 19 },
@@ -290,11 +371,136 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   cardIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  cardBody: { flex: 1, gap: 4 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   cardTitle: { flex: 1, gap: 5 },
+  addButton: {
+    minHeight: 38,
+    paddingHorizontal: 11,
+    borderRadius: Radius.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   blurb: { lineHeight: 20 },
+  carouselPreview: {
+    width: '82%',
+    maxWidth: 300,
+    aspectRatio: 1,
+    alignSelf: 'center',
+    borderRadius: Radius.tile,
+    overflow: 'hidden',
+  },
+  notePreview: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+  },
+  previewTop: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  previewChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(24,32,27,0.6)',
+  },
+  previewChipText: { color: '#FCFAF7', fontSize: 9 },
+  previewCount: { color: '#FCFAF7', textShadowColor: '#18201B', textShadowRadius: 4 },
+  previewFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 66,
+    paddingLeft: 14,
+    paddingRight: 12,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(24,32,27,0.62)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  previewCaption: { color: '#FCFAF7' },
+  previewAuthor: { color: '#FCFAF7', marginTop: 2 },
+  previewArrows: { flexDirection: 'row', gap: 7 },
+  previewArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    textAlign: 'center',
+    lineHeight: 29,
+    color: '#FCFAF7',
+    backgroundColor: 'rgba(24,32,27,0.65)',
+  },
+  widePreview: {
+    width: '100%',
+    aspectRatio: 2,
+    borderRadius: Radius.tile,
+    padding: Spacing.base,
+    gap: Spacing.sm,
+    overflow: 'hidden',
+  },
+  presencePreview: {
+    width: '100%',
+    aspectRatio: 1.55,
+    borderRadius: Radius.tile,
+    padding: Spacing.base,
+    gap: Spacing.sm,
+    overflow: 'hidden',
+  },
+  previewRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  presenceHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  moodBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EADDD7',
+  },
+  streakBadge: { borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 5 },
+  statusPanel: {
+    flex: 1,
+    justifyContent: 'center',
+    borderRadius: Radius.inset,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  presenceDetails: { flexDirection: 'row', gap: Spacing.md },
+  quickHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  quickActions: { flexDirection: 'row', gap: Spacing.sm, flex: 1, alignItems: 'stretch' },
+  quickAction: {
+    flex: 1,
+    borderRadius: Radius.inset,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+  },
+  todoPreview: {
+    width: '100%',
+    aspectRatio: 1.15,
+    borderRadius: Radius.tile,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.base,
+    overflow: 'hidden',
+  },
+  todoRow: {
+    minHeight: 50,
+    paddingVertical: 5,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
   tag: {
     paddingHorizontal: 7,
     paddingVertical: 2,

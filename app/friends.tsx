@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -109,7 +108,6 @@ export default function FriendsScreen() {
           </View>
         ) : null}
 
-        <ContactMatches />
 
         {incoming.length ? (
           <View style={styles.section}>
@@ -153,106 +151,6 @@ export default function FriendsScreen() {
 
       </ScrollView>
     </KeyboardAvoider>
-  );
-}
-
-/**
- * Contact matching.
- *
- * Only hashes are uploaded — never the address book itself — so the copy says
- * so plainly rather than asking for trust the user cannot verify.
- */
-function ContactMatches() {
-  const theme = useTheme();
-  const { contactMatches, scanningContacts, scanContacts, addFriend } = useFriends();
-  const [pendingId, setPendingId] = useState<string>();
-  const [notice, setNotice] = useState<string>();
-  const [needsSettings, setNeedsSettings] = useState(false);
-
-  const scan = async () => {
-    const result = await scanContacts();
-    setNeedsSettings(!result.ok && Boolean(result.canOpenSettings));
-    setNotice(
-      result.ok
-        ? result.matches.length
-          ? undefined
-          : `Checked ${result.scanned} contacts — nobody here yet. We'll tell you when one joins.`
-        : result.reason,
-    );
-  };
-
-  const connect = async (person: PersonSummary) => {
-    setPendingId(person.id);
-    try {
-      await addFriend(person.id);
-    } catch (cause) {
-      showDialog('Could not send request', userFacingError(cause, 'Please try again.'));
-    } finally {
-      setPendingId(undefined);
-    }
-  };
-
-  const connectable = contactMatches.filter((person) => person.status === 'none');
-
-  return (
-    <View style={styles.section}>
-      <Text variant="micro" color="textFaint">FROM YOUR CONTACTS</Text>
-      <Text variant="title">People you may know</Text>
-      <Text variant="caption" color="textFaint">
-        Weship checks which contacts are already here. Only scrambled codes leave your phone — never
-        the contacts themselves.
-      </Text>
-
-      <Button
-        loading={scanningContacts}
-        label={scanningContacts ? 'Checking…' : contactMatches.length ? 'Check again' : 'Find friends in contacts'}
-        variant="soft"
-        full
-        disabled={scanningContacts}
-        icon={<Ionicons name="people-circle-outline" size={18} color={theme.primaryDeep} />}
-        onPress={scan}
-        style={{ marginTop: Spacing.xs }}
-      />
-
-      {notice ? (
-        <Text variant="caption" color="textFaint" style={{ marginTop: Spacing.xs }}>
-          {notice}
-        </Text>
-      ) : null}
-
-      {/* A permission the user has permanently denied cannot be re-requested
-          from inside the app, so the only useful control is a way out to it. */}
-      {needsSettings ? (
-        <Button
-          label="Open Settings"
-          variant="ghost"
-          full
-          onPress={() => Linking.openSettings()}
-          style={{ marginTop: Spacing.xs }}
-        />
-      ) : null}
-
-      {connectable.length ? (
-        <View style={styles.list}>
-          {connectable.map((person) => (
-            <PersonRow
-              key={person.id}
-              person={person}
-              action={
-                <Button
-                  loading={pendingId === person.id}
-                  label={pendingId === person.id ? 'Sending…' : 'Add'}
-                  size="sm"
-                  variant="soft"
-                  disabled={pendingId === person.id}
-                  onPress={() => connect(person)}
-                />
-              }
-            />
-          ))}
-        </View>
-      ) : null}
-    </View>
   );
 }
 

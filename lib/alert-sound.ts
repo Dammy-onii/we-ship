@@ -15,12 +15,19 @@ import { requireOptionalNativeModule } from 'expo';
  */
 const systemSound = requireOptionalNativeModule<{
   playNotificationSound: () => Promise<boolean>;
+  openNotificationSoundSettings?: (channelId: string) => Promise<boolean>;
 }>('WeshipSystemSound');
 
-export function playAlertSound() {
+export async function playAlertSound(): Promise<boolean> {
   // Absent on web, and in Expo Go, where the module is not part of the runtime.
   // A silent toast is the correct outcome there; there is nothing to fall back
   // to that would not be a sound invented for the occasion.
-  if (!systemSound) return;
-  systemSound.playNotificationSound().catch(() => {});
+  if (!systemSound) return false;
+  return systemSound.playNotificationSound().catch(() => false);
+}
+
+/** Opens Android's own sound picker for the Weship notification channel. */
+export async function openAndroidNotificationSoundSettings(channelId: string): Promise<boolean> {
+  if (!systemSound?.openNotificationSoundSettings) return false;
+  return systemSound.openNotificationSoundSettings(channelId).catch(() => false);
 }

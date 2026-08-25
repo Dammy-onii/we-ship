@@ -136,16 +136,10 @@ supabase functions deploy dispatch-reminders --no-verify-jwt
 
 In Supabase Auth URL configuration, add `weship://auth/callback` to allowed redirect URLs. Email/password and magic-link sign-in are implemented.
 
-Create a Database Webhook on `public.activity_events` INSERT to:
-
-```text
-https://<PROJECT_REF>.supabase.co/functions/v1/dispatch-push
-```
-
-Include header `x-weship-secret` with the same `PUSH_WEBHOOK_SECRET`. Database triggers already fan activities out to in-app notifications; the webhook handles device delivery.
-
-Create the same INSERT webhook on `public.personal_notifications` so friend
-requests, decisions, and posts reach devices too. Use the same URL and secret.
+Do not create Dashboard Database Webhooks for `activity_events` or
+`personal_notifications`. The schema migrations install signed trigger delivery
+for both tables. If either legacy Dashboard webhook still exists, disable or
+delete it; running both paths sends the same push twice.
 
 Schedule `dispatch-reminders` once per minute with Supabase Cron (or another
 trusted scheduler). Send a POST to

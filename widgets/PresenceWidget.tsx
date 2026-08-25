@@ -1,5 +1,7 @@
 import { HStack, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
+  background,
+  clipShape,
   containerBackground,
   font,
   foregroundStyle,
@@ -24,6 +26,8 @@ export type PresenceWidgetProps = {
   pendingTask: string;
   /** Carried here after the standalone streak widget was retired. */
   streak: number;
+  /** Used when there is no pending 2do, so the lower card never becomes dead space. */
+  questionProgress: string;
 };
 
 /**
@@ -42,6 +46,9 @@ function PresenceView(props: PresenceWidgetProps, environment: WidgetEnvironment
   const meta = props.localTime || props.lastExchange || props.lastSeen;
   // The task needs a line of its own, which the small family does not have.
   const showTask = Boolean(props.pendingTask) && !theme.compact;
+  const detailLabel = showTask ? 'NEXT 2DO' : 'DAILY QUESTION';
+  const detail = showTask ? props.pendingTask : props.questionProgress;
+  const metaLabel = props.localTime ? 'THEIR TIME' : 'LATEST BETWEEN YOU';
 
   // Lock-screen families are tiny and monochrome — one line only.
   if (theme.lockScreen) {
@@ -55,51 +62,87 @@ function PresenceView(props: PresenceWidgetProps, environment: WidgetEnvironment
   return (
     <VStack
       alignment="leading"
-      spacing={6}
+      spacing={8}
       modifiers={[
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'leading' }),
-        padding({ all: 14 }),
+        padding({ all: 12 }),
         containerBackground(theme.background, 'widget'),
         widgetURL('weship://'),
       ]}>
-      <HStack spacing={6}>
+      <HStack spacing={9}>
         <Text
           modifiers={[
-            font({ size: theme.compact ? 17 : 20, weight: 'bold' }),
-            foregroundStyle(theme.text),
-            lineLimit(1),
+            frame({ width: 38, height: 38 }),
+            background(theme.moodFill),
+            clipShape('circle'),
+            font({ size: 20 }),
           ]}>
-          {props.name}
+          {props.moodEmoji}
         </Text>
+        <VStack alignment="leading" spacing={0}>
+          <Text
+            modifiers={[
+              font({ size: theme.compact ? 16 : 18, weight: 'bold' }),
+              foregroundStyle(theme.text),
+              lineLimit(1),
+            ]}>
+            {props.name}
+          </Text>
+          <Text modifiers={[font({ size: 8, weight: 'bold' }), foregroundStyle(theme.accent)]}>
+            RIGHT NOW
+          </Text>
+        </VStack>
         <Spacer />
         {props.streak > 0 ? (
           <Text
-            modifiers={[font({ size: 11, weight: 'semibold' }), foregroundStyle(theme.secondary)]}>
+            modifiers={[
+              padding({ horizontal: 8, vertical: 5 }),
+              background(theme.accent),
+              clipShape('capsule'),
+              font({ size: 11, weight: 'bold' }),
+              foregroundStyle(theme.onPhoto),
+            ]}>
             {`🔥 ${props.streak}`}
           </Text>
         ) : null}
       </HStack>
-      <HStack spacing={5}>
-        <Text modifiers={[font({ size: 14 })]}>{props.moodEmoji}</Text>
-        <Text
-          modifiers={[font({ size: 14 }), foregroundStyle(theme.text), lineLimit(2)]}>
-          {line}
-        </Text>
-        <Spacer />
+      <Text
+        modifiers={[
+          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'leading' }),
+          padding({ horizontal: 10, vertical: 8 }),
+          background(theme.surface),
+          clipShape('roundedRectangle', 14),
+          font({ size: 14, weight: 'medium' }),
+          foregroundStyle(theme.text),
+          lineLimit(2),
+        ]}>
+        {line}
+      </Text>
+      <HStack spacing={12}>
+        <InfoBlock label={metaLabel} value={meta} theme={theme} />
+        <InfoBlock label={detailLabel} value={detail} theme={theme} />
       </HStack>
-      <Spacer />
-      {showTask ? (
-        <HStack spacing={5}>
-          <Text modifiers={[font({ size: 11 }), foregroundStyle(theme.secondary)]}>○</Text>
-          <Text
-            modifiers={[font({ size: 12 }), foregroundStyle(theme.text), lineLimit(1)]}>
-            {props.pendingTask}
-          </Text>
-          <Spacer />
-        </HStack>
-      ) : null}
-      <Text modifiers={[font({ size: 11, weight: 'semibold' }), foregroundStyle(theme.secondary)]}>
-        {meta.toUpperCase()}
+    </VStack>
+  );
+}
+
+function InfoBlock({
+  label,
+  value,
+  theme,
+}: {
+  label: string;
+  value: string;
+  theme: ReturnType<typeof widgetTheme>;
+}) {
+  'widget';
+  return (
+    <VStack alignment="leading" spacing={1} modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}>
+      <Text modifiers={[font({ size: 8, weight: 'bold' }), foregroundStyle(theme.secondary), lineLimit(1)]}>
+        {label}
+      </Text>
+      <Text modifiers={[font({ size: 11, weight: 'semibold' }), foregroundStyle(theme.text), lineLimit(1)]}>
+        {value}
       </Text>
     </VStack>
   );

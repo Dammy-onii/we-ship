@@ -82,7 +82,12 @@ export type WidgetSnapshot = {
   updatedAt: string;
 };
 
-const MAX_SLIDES = 12;
+/*
+ * A hard cap, not a curation rule. Every eligible item goes into the carousel;
+ * this only stops an unbounded deck from caching hundreds of files onto disk
+ * for a surface that shows one card at a time.
+ */
+const MAX_SLIDES = 40;
 
 export const EMPTY_SNAPSHOT: WidgetSnapshot = {
   todo: null,
@@ -112,6 +117,29 @@ type BuildInput = {
 };
 
 export async function buildWidgetSnapshot(input: BuildInput): Promise<WidgetSnapshot> {
+  const [partnerSlides, friendSlides] = await Promise.all([
+    buildPartnerSlides(input),
+    buildFriendSlides(input.friendPosts),
+  ]);
+  return assembleSnapshot(input, partnerSlides, friendSlides);
+}
+
+/**
+ * Core widget data that does not wait for media downloads.
+ *
+ * A slow or expired image URL must not leave Presence and 2do blank while up
+ * to 24 carousel previews are copied to disk. The native widgets receive this
+ * shell immediately, then the complete carousel snapshot replaces it.
+ */
+export function buildImmediateWidgetSnapshot(input: BuildInput): WidgetSnapshot {
+  return assembleSnapshot(input, [], []);
+}
+
+function assembleSnapshot(
+  input: BuildInput,
+  partnerSlides: CarouselSlide[],
+  friendSlides: CarouselSlide[],
+): WidgetSnapshot {
   const todos: WidgetTask[] = input.habits.map((habit) => ({
     id: habit.id,
     label: habit.label,
@@ -126,11 +154,6 @@ export async function buildWidgetSnapshot(input: BuildInput): Promise<WidgetSnap
 
   const sameZone = input.partner.timezone === input.me.timezone;
   const mood = moodOf(input.presence.mood as MoodKey);
-
-  const [partnerSlides, friendSlides] = await Promise.all([
-    buildPartnerSlides(input),
-    buildFriendSlides(input.friendPosts),
-  ]);
 
   return {
     todo: todoTask
@@ -172,13 +195,16 @@ async function buildPartnerSlides(input: BuildInput): Promise<CarouselSlide[]> {
   // A partner's favourite always leads, so pushing something to their home
   // screen actually shows up first rather than competing with the newest Goodie.
   if (input.favourite) {
+    const favouriteImage = input.favourite.uri
+      ? await localCopy('favourite', input.favourite.kind, input.favourite.uri)
+      : undefined;
     slides.push({
       id: 'favourite',
-      kind: input.favourite.kind === 'photo' ? 'photo' : 'note',
+      // Demoted to a note when its image could not be cached, so a favourite
+      // with no bytes shows its words instead of an empty frame.
+      kind: favouriteImage ? 'photo' : 'note',
       text: input.favourite.body,
-      imageUri: input.favourite.uri
-        ? await localCopy('favourite', input.favourite.kind, input.favourite.uri)
-        : undefined,
+      imageUri: favouriteImage,
       author: input.partner.displayName,
       favourite: true,
       route: 'weship://spotlight',
@@ -191,11 +217,23 @@ async function buildPartnerSlides(input: BuildInput): Promise<CarouselSlide[]> {
     // A photo whose bytes never arrived would render as a blank slide.
     if (goodie.kind !== 'note' && !goodie.uri) continue;
     const author = goodie.authorId === input.meId ? input.me : input.partner;
+    const imageUri = goodie.uri
+      ? await localCopy(goodie.id, goodie.kind, goodie.uri)
+      : undefined;
+    /*
+     * A photo or video whose bytes never made it into the local cache has
+     * nothing to draw. `localCopy` reports that by returning undefined rather
+     * than throwing, and without this guard the slide was still pushed — so the
+     * widget fell through to its note branch and rendered a photo's empty
+     * caption as a blank card. The friends carousel already skipped these; this
+     * one did not.
+     */
+    if (goodie.kind !== 'note' && !imageUri) continue;
     slides.push({
       id: goodie.id,
       kind: goodie.kind,
       text: goodie.text,
-      imageUri: goodie.uri ? await localCopy(goodie.id, goodie.kind, goodie.uri) : undefined,
+      imageUri,
       author: author.displayName,
       // Lands on this exact item rather than the top of the gallery.
       route: `weship://spotlight?item=${encodeURIComponent(goodie.id)}`,
@@ -206,28 +244,26 @@ async function buildPartnerSlides(input: BuildInput): Promise<CarouselSlide[]> {
 }
 
 /**
- * The friends carousel: everyone's most recent post, in a daily-shuffled order.
+ * The friends carousel: every post on the friend board, newest first.
  *
- * One per friend so a prolific poster cannot crowd the others out, and shuffled
- * rather than newest-first so the same person is not permanently on top. Your
- * own posts are excluded — this widget is for seeing other people.
+ * This used to keep only each friend's newest post, which meant a two-friend
+ * board could only ever be two cards deep no matter how much had been shared,
+ * and it used to drop your own posts. The widget now mirrors the board exactly,
+ * yours included — the board shows them, so the widget of the board should too.
  */
 type CarouselPost = FriendPost & { kind: 'photo' | 'video' | 'note' };
 
 async function buildFriendSlides(posts: FriendPost[]): Promise<CarouselSlide[]> {
-  const newestPerFriend = new Map<string, CarouselPost>();
+  const eligible: CarouselPost[] = [];
   for (const post of posts) {
-    if (post.mine) continue;
     if (post.kind !== 'photo' && post.kind !== 'video' && post.kind !== 'note') continue;
     if (post.kind !== 'note' && !post.uri) continue;
-    const carouselPost = post as CarouselPost;
-    const existing = newestPerFriend.get(post.author.id);
-    if (!existing || carouselPost.createdAt > existing.createdAt) {
-      newestPerFriend.set(post.author.id, carouselPost);
-    }
+    eligible.push(post as CarouselPost);
   }
 
-  const ordered = shuffleForToday([...newestPerFriend.values()]).slice(0, MAX_SLIDES);
+  const ordered = eligible
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+    .slice(0, MAX_SLIDES);
 
   const slides: CarouselSlide[] = [];
   for (const post of ordered) {
@@ -247,24 +283,6 @@ async function buildFriendSlides(posts: FriendPost[]): Promise<CarouselSlide[]> 
     });
   }
   return slides;
-}
-
-/**
- * A stable shuffle that changes once a day.
- *
- * Seeded by the date so every redraw within a day keeps the same order — a
- * carousel that reshuffled on each refresh would jump around while being read.
- */
-function shuffleForToday<T extends { id: string }>(items: T[]): T[] {
-  const day = Math.floor(Date.now() / 86_400_000);
-  return items
-    .map((item) => {
-      let hash = day;
-      for (const character of item.id) hash = (hash * 31 + character.charCodeAt(0)) | 0;
-      return { item, rank: hash };
-    })
-    .sort((a, b) => a.rank - b.rank)
-    .map((entry) => entry.item);
 }
 
 /**

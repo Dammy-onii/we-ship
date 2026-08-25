@@ -8,7 +8,12 @@ import android.content.Intent
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import kotlin.concurrent.thread
+import org.json.JSONObject
 
 /**
  * Handles taps on widget buttons.
@@ -19,9 +24,22 @@ import kotlin.concurrent.thread
  * the app flushes it on next launch.
  */
 class WidgetActionReceiver : BroadcastReceiver() {
+  /**
+   * Every branch here runs inside `goAsync()`.
+   *
+   * Not for the work's sake — stepping a carousel is instant — but because a
+   * receiver that returns immediately lets the process fall straight back to
+   * cached, and the platform then *defers* the widget updates it just issued.
+   * `AppWidgetServiceImpl` logs "Trying to notify widget update deferred" and
+   * the new content lands several seconds later, which is why the arrows read
+   * as broken and why a ticked 2do kept its old header count while the row
+   * itself updated. Holding the receiver open until the update is dispatched
+   * keeps the process out of that state.
+   */
   override fun onReceive(context: Context, intent: Intent) {
     val action = intent.getStringExtra(EXTRA_ACTION) ?: return
     val target = intent.getStringExtra(EXTRA_TARGET).orEmpty()
+    val pending = goAsync()
 
     // Stepping a carousel is purely local — nothing to send anywhere.
     if (action == ACTION_CAROUSEL_NEXT || action == ACTION_CAROUSEL_PREVIOUS) {
@@ -29,6 +47,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
         if (target == "partnerSlides") PartnerCarouselProvider::class.java
         else FriendsCarouselProvider::class.java
       WeshipWidgets.step(context, provider, forward = action == ACTION_CAROUSEL_NEXT)
+      pending.finish()
       return
     }
 
@@ -40,6 +59,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
           flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
       )
+      pending.finish()
       return
     }
 
@@ -58,10 +78,10 @@ class WidgetActionReceiver : BroadcastReceiver() {
     val session = WidgetStore.session(context)
     if (session == null) {
       WidgetStore.queueAction(context, action, target)
+      pending.finish()
       return
     }
 
-    val pending = goAsync()
     thread {
       val sent = runCatching { send(session, action, target) }.getOrDefault(false)
       if (!sent) WidgetStore.queueAction(context, action, target)
@@ -73,7 +93,12 @@ class WidgetActionReceiver : BroadcastReceiver() {
     val (path, body) = when (action) {
       ACTION_COMPLETE_TASK ->
         "rpc/set_task_complete" to
-          """{"p_task_id":"$target","p_completed":true,"p_note":null,"p_local_date":null}"""
+          JSONObject()
+            .put("p_task_id", target)
+            .put("p_completed", true)
+            .put("p_note", JSONObject.NULL)
+            .put("p_local_date", localDate(session.timezone))
+            .toString()
       else -> return false
     }
 
@@ -93,6 +118,11 @@ class WidgetActionReceiver : BroadcastReceiver() {
       connection.disconnect()
     }
   }
+
+  private fun localDate(timezone: String): String =
+    SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+      timeZone = TimeZone.getTimeZone(timezone)
+    }.format(Date())
 
   private fun refresh(context: Context, provider: Class<*>) {
     val manager = AppWidgetManager.getInstance(context)

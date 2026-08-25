@@ -65,7 +65,7 @@
       android:name=".WidgetActionReceiver"
       android:exported="false" />
 
-    <!-- Feeds the swipeable StackView carousels. The permission is required by
+    <!-- Feeds the flat AdapterViewFlipper carousels. The permission is required by
          the platform so only the launcher may bind to it. -->
     <service
       android:name=".CarouselRemoteViewsService"

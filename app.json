@@ -84,12 +84,6 @@
           "cameraPermission": false
         }
       ],
-      [
-        "expo-contacts",
-        {
-          "contactsPermission": "Weship checks which of your contacts are already here. Only scrambled codes leave your phone — never the contacts themselves."
-        }
-      ],
       "expo-asset",
       "expo-secure-store",
       [
@@ -97,7 +91,7 @@
         {
           "icon": "./assets/images/generated/android-icon-monochrome.png",
           "color": "#5F5B57",
-          "defaultChannel": "weship-updates-v3"
+          "defaultChannel": "weship-updates-v4"
         }
       ],
       [
@@ -107,7 +101,7 @@
             {
               "name": "TopTodoWidget",
               "displayName": "Weship 2do",
-              "description": "Your next incomplete shared 2do.",
+              "description": "Up to four shared 2dos at a glance.",
               "supportedFamilies": [
                 "systemSmall",
                 "systemMedium"

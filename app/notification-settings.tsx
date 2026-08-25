@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
+import { openAndroidNotificationSoundSettings, playAlertSound } from '@/lib/alert-sound';
 import { useAuth } from '@/lib/auth';
 import {
   disablePushNotifications,
@@ -16,6 +17,8 @@ import {
   pushNotificationsEnabled,
   pushSupported,
   pushUnavailableReason,
+  PUSH_CHANNEL,
+  scheduleTestNotification,
 } from '@/lib/push';
 
 export default function NotificationSettingsScreen() {
@@ -25,6 +28,7 @@ export default function NotificationSettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [checking, setChecking] = useState(Boolean(auth.user && pushSupported));
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -63,6 +67,38 @@ export default function NotificationSettingsScreen() {
     }
   };
 
+  const testInAppSound = async () => {
+    const played = await playAlertSound();
+    if (!played) {
+      showDialog(
+        'No in-app sound played',
+        'Check that the phone is not silent and that notification volume is up. A custom development or release build is required.',
+      );
+    }
+  };
+
+  const testNotification = async () => {
+    setTesting(true);
+    try {
+      await scheduleTestNotification();
+      showDialog('Test scheduled', 'A Weship notification should appear and sound in two seconds.');
+    } catch (error) {
+      showDialog('Could not test notifications', userFacingError(error, 'Please try again.'));
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const chooseAndroidSound = async () => {
+    const opened = await openAndroidNotificationSoundSettings(PUSH_CHANNEL);
+    if (!opened) {
+      showDialog(
+        'Open Android notification settings',
+        'Go to Settings › Apps › Weship › Notifications › Weship updates › Sound.',
+      );
+    }
+  };
+
   return (
     <ScrollView style={{ backgroundColor: theme.bg }} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}>
       <View style={[styles.hero, { backgroundColor: theme.surfaceAlt }]}>
@@ -77,6 +113,15 @@ export default function NotificationSettingsScreen() {
         </View>
       ) : null}
       <Button full label={checking ? 'Checking…' : busy ? 'Updating…' : enabled ? 'Notifications enabled' : 'Enable notifications'} disabled={checking || busy || enabled || !auth.configured || !pushSupported} onPress={enable} />
+      {enabled ? (
+        <View style={styles.tests}>
+          <Button full variant="soft" label="Test in-app sound" disabled={testing} onPress={testInAppSound} />
+          <Button full variant="soft" label={testing ? 'Scheduling…' : 'Test system notification'} disabled={testing} onPress={testNotification} />
+          {Platform.OS === 'android' ? (
+            <Button full variant="soft" label="Choose Android notification sound" disabled={testing} onPress={chooseAndroidSound} />
+          ) : null}
+        </View>
+      ) : null}
       {enabled ? <Button full variant="soft" label="Disable on this device" disabled={busy} onPress={disable} /> : null}
       <Text variant="caption" color="textFaint">Weship asks the phone only when you press Enable. Each physical device stores its own revocable Expo push token.</Text>
     </ScrollView>
@@ -94,4 +139,5 @@ const styles = StyleSheet.create({
   },
   content: { padding: Spacing.lg, gap: Spacing.lg },
   hero: { borderRadius: Radius.tile, padding: Spacing.xl, alignItems: 'center', gap: Spacing.md },
+  tests: { gap: Spacing.sm },
 });

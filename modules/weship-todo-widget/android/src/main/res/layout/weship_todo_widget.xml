@@ -13,7 +13,7 @@
   android:orientation="vertical"
   android:paddingStart="16dp"
   android:paddingEnd="16dp"
-  android:paddingTop="14dp"
+  android:paddingTop="12dp"
   android:paddingBottom="10dp">
 
   <LinearLayout
@@ -42,12 +42,17 @@
       android:textSize="11sp" />
   </LinearLayout>
 
+  <!--
+    No margin rule. A vertical line down the left of a widget this narrow reads
+    as a stray divider rather than as paper, and it stole width from the labels.
+    The rules on the rows carry the pad on their own.
+  -->
   <ListView
     android:id="@+id/weship_widget_list"
     android:layout_width="match_parent"
     android:layout_height="0dp"
     android:layout_weight="1"
-    android:layout_marginTop="8dp"
+    android:layout_marginTop="7dp"
     android:divider="@null"
     android:dividerHeight="0dp"
     android:scrollbars="none" />

@@ -21,16 +21,28 @@
     android:adjustViewBounds="false"
     android:contentDescription="@string/weship_carousel_image" />
 
+  <!--
+    A note is written on paper.
+
+    Top-aligned and left-indented past the margin rule, with its line height set
+    in dp to the drawable's 24dp rule pitch, so the words sit on the lines
+    instead of floating between them. `lineSpacingExtra` rather than a
+    multiplier: the pitch is a fixed distance, not a ratio.
+  -->
   <TextView
     android:id="@+id/weship_slide_note"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
-    android:padding="20dp"
+    android:background="@drawable/weship_widget_notepad"
+    android:gravity="top|start"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="44dp"
+    android:paddingBottom="16dp"
     android:maxLines="7"
     android:ellipsize="end"
-    android:lineSpacingMultiplier="1.25"
-    android:textSize="16sp"
+    android:lineSpacingExtra="5dp"
+    android:textSize="15sp"
     android:textColor="@color/weship_widget_text"
     android:visibility="gone" />
 

@@ -65,10 +65,12 @@ Sub-screens:
 ## Sidebar drawer
 
 - **Profile header** — unboxed profile picture and username; opens the profile preview.
-- **Goodies** (`goodies`) — daily media/note/reminder feed plus a single-page composer for every supported send type.
+- **Spotlight empty states** — both Spotlights show a drawn landscape plus a labelled sample note card rather than an icon, so the surface reads as "this is where pictures and notes go" instead of "no data". Composed from gradients and views, not a bundled bitmap. See [components/empty-spotlight.tsx](../components/empty-spotlight.tsx).
+
+- **Goodies** (`goodies`) — daily media/note/reminder feed plus a single-page composer for every supported send type. A destination selector at the top switches between **Us** and **Friends**; choosing Friends opens the friend board's own composer, so the Quick send widget's three tiles can reach either audience without the widget growing to six. `?to=friends` seeds the selector. Partner photo/video sharing requires the uploader's Google Drive connection and accepts one media item at a time; its optional message remains visible after sharing.
 - **Capture** — centered mic in the drawer’s bottom area, directly above the Weship mark; tap opens Goodies in voice mode and long press starts recording after navigation.
-- **2do** (`todo`) — every shared task with each partner's completion state, recurrence, and note requirement; users can add and delete tasks. It uses the same drawer header and page rhythm as Memories.
-- **Widgets** (`widgets`) — exact top-incomplete-2do preview, platform install instructions, and native iOS/Android publishing status.
+- **2do** (`todo`) — every shared task with each partner's completion state, recurrence, and note requirement; users can add and delete tasks. Below current and completed work, **Missed periods** names who left a closed interval incomplete and shows the exact date or range. The section remains visible with a zero-state so historical tracking is discoverable.
+- **Widgets** (`widgets`) — a compact catalogue with full layout previews for Us, Friends, Presence, Quick send and 2do, concise behavior notes, and an Add control per widget.
 - **Memories** (`memories`) — collapsible editable timeline with a native date picker, followed by the moments gallery.
 
 Profile sub-screens now provide live data entry points: **Account** (`account`), **Shared Space** (`pairing`), **Connections** (`connections`), **Calendar** (`calendar`), and **Notification settings** (`notification-settings`). Memories and photo/video Goodies upload originals to the uploader’s Drive and previews to Supabase. The shared `media` route opens a ready original through authenticated pair-scoped delivery. — [codex · done-unverified]
@@ -102,13 +104,15 @@ Configured builds show the email/password or magic-link Auth gate, then direct u
 | Moment detail | `us/moment/[id]` | 🔜 |
 | Profile | `modal` | ✅ (full-width layout) |
 | Settings | `settings` | 🔜 |
-| Widget Studio | `widgets` | ✅ (native iOS + Android top-2do) |
+| Widget Studio | `widgets` | ✅ native iOS + Android catalogue, full layout previews, install controls, and platform-accurate 2do behavior |
 | Account | `account` | ✅ live |
 | Shared Space pairing | `pairing` | ✅ live |
 | Google/Drive connections | `connections` | ✅ configured; connected-account validation pending |
 | Calendar import/create | `calendar` | ✅ configured; connected-account validation pending |
 | Notification settings | `notification-settings` | ✅ code; device credentials pending |
-| Friends | `friends` | 🧊 |
+| Friends | `friends` | ✅ live graph, board, username search, and requests. People are added by username; there is no contact matching |
 | Friend profile | `friend/[id]` | ✅ code; device validation pending — who they are, whether they are paired, their gender, and their posts |
 | Google OAuth return | `connections/google` | ✅ redirects to Connections |
 | Auth gate | root provider | ✅ live |
+
+## First-run permissions

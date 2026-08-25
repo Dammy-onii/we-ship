@@ -155,6 +155,11 @@ function Byline({ item }: { item: SpotlightItem }) {
         <Text variant="captionStrong" onPhoto>
           {item.mine ? 'You' : item.authorName}
         </Text>
+        {item.text && (item.kind === 'photo' || item.kind === 'video') ? (
+          <Text variant="body" onPhoto style={styles.mediaNote} numberOfLines={3}>
+            {item.text}
+          </Text>
+        ) : null}
         <Text variant="micro" onPhoto style={{ opacity: 0.75 }}>
           {relativeDay(item.createdAt.slice(0, 10)).toUpperCase()}
         </Text>
@@ -290,4 +295,5 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(12,12,11,0.55)',
   },
   byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  mediaNote: { marginTop: 3 },
 });

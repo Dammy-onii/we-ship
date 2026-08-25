@@ -11,6 +11,15 @@ type WeshipWidgetModule = {
   requestPin(kind: string): Promise<boolean>;
   availableKinds(): Promise<string[]>;
   drainActions(): Promise<string>;
+  acknowledgeActions(json: string): Promise<void>;
+};
+
+export type WidgetAction = { type: string; id: string; at: number };
+export type WidgetSession = {
+  url: string;
+  anonKey: string;
+  accessToken: string;
+  timezone: string;
 };
 
 const widget = requireOptionalNativeModule<Partial<WeshipWidgetModule>>('WeshipTodoWidget');
@@ -54,7 +63,7 @@ export function syncWidgetSnapshot(snapshot: WidgetSnapshot) {
  * change, and cleared on sign-out so a signed-out phone cannot act.
  */
 export function setWidgetSession(
-  session: { url: string; anonKey: string; accessToken: string } | null,
+  session: WidgetSession | null,
 ) {
   call('setSession', session ? JSON.stringify(session) : null)?.catch(() => {});
 }
@@ -83,13 +92,19 @@ export async function requestWidgetPin(kind = 'todo'): Promise<boolean> {
 }
 
 /** Actions a widget button could not send (expired token, offline). */
-export async function drainWidgetActions(): Promise<{ type: string; id: string; at: number }[]> {
+export async function drainWidgetActions(): Promise<WidgetAction[]> {
   try {
     const raw = await call('drainActions');
-    return raw ? (JSON.parse(raw) as { type: string; id: string; at: number }[]) : [];
+    return raw ? (JSON.parse(raw) as WidgetAction[]) : [];
   } catch {
     return [];
   }
+}
+
+/** Removes only actions the app successfully replayed. Failed taps stay queued. */
+export async function acknowledgeWidgetActions(actions: WidgetAction[]): Promise<void> {
+  if (!actions.length) return;
+  await call('acknowledgeActions', JSON.stringify(actions));
 }
 
 /**

@@ -24,6 +24,11 @@ export function widgetTheme(environment: WidgetEnvironment) {
     background: '#F6F3EE',
     /** Raised fill for tappable regions inside a widget. Palette.light.surface */
     surface: '#FCFAF7',
+    line: '#DED7CF',
+    moodFill: '#EADDD7',
+    photoFill: '#E2ECE4',
+    voiceFill: '#EEDFD9',
+    noteFill: '#ECE6D2',
     // Palette.light.text
     text: '#262625',
     // Palette.light.textSoft

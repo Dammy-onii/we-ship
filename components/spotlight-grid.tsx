@@ -243,10 +243,17 @@ function MediaCard({ item, height, onPress, onLongPress }: CardProps) {
         </View>
       ) : null}
       <View style={styles.mediaByline}>
-        <View style={[styles.kindDot, { backgroundColor: item.mine ? theme.primary : theme.partner }]} />
-        <Text variant="micro" style={{ color: '#FFFCF7' }} numberOfLines={1}>
-          {byline(item)}
-        </Text>
+        {item.text ? (
+          <Text variant="captionStrong" style={styles.mediaCaption} numberOfLines={2}>
+            {item.text}
+          </Text>
+        ) : null}
+        <View style={styles.mediaAuthor}>
+          <View style={[styles.kindDot, { backgroundColor: item.mine ? theme.primary : theme.partner }]} />
+          <Text variant="micro" style={{ color: '#FFFCF7' }} numberOfLines={1}>
+            {byline(item)}
+          </Text>
+        </View>
       </View>
     </CardShell>
   );
@@ -376,13 +383,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 4,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 7,
     backgroundColor: 'rgba(18,17,16,0.42)',
   },
+  mediaCaption: { color: '#FFFCF7' },
+  mediaAuthor: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   playBadge: {
     position: 'absolute',
     top: Spacing.sm,

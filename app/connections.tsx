@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import * as drive from '@/lib/backend/drive';
 import * as integrations from '@/lib/backend/integrations';
 import { useBackendStatus } from '@/lib/store';
+import { useGoogleConnection } from '@/lib/use-google-connection';
 import { userFacingError } from '@/lib/user-facing-error';
 
 export default function ConnectionsScreen() {
@@ -20,6 +21,7 @@ export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const sync = useBackendStatus();
+  const sharedGoogle = useGoogleConnection();
   const [connections, setConnections] = useState<integrations.ProviderConnection[]>([]);
   const [busy, setBusy] = useState(false);
   const [loadingConnections, setLoadingConnections] = useState(sync.mode === 'live');
@@ -58,6 +60,7 @@ export default function ConnectionsScreen() {
     try {
       await integrations.connectGoogle();
       await load();
+      await sharedGoogle.refresh();
     } catch (error) {
       showDialog('Could not connect Google', userFacingError(error, 'Please try again in a moment.'));
     } finally { setBusy(false); }
@@ -65,7 +68,11 @@ export default function ConnectionsScreen() {
 
   const disconnect = async () => {
     setBusy(true);
-    try { await integrations.disconnectProvider('google'); await load(); }
+    try {
+      await integrations.disconnectProvider('google');
+      await load();
+      await sharedGoogle.refresh();
+    }
     catch (error) { showDialog('Could not disconnect', userFacingError(error, 'Please try again.')); }
     finally { setBusy(false); }
   };

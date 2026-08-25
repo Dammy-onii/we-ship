@@ -39,6 +39,7 @@ import { AuthProvider } from '@/lib/auth';
 import { FriendsProvider } from '@/lib/friends';
 import { usePushNotificationRouting } from '@/lib/push';
 import { StoreProvider } from '@/lib/store';
+import { GoogleConnectionProvider } from '@/lib/use-google-connection';
 import { useWidgetSync } from '@/lib/use-widget-sync';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -117,7 +118,8 @@ export default function RootLayout() {
             <ToastProvider>
             <AuthGate>
               <StoreProvider>
-                <FriendsProvider>
+                <GoogleConnectionProvider>
+                  <FriendsProvider>
                 <WidgetSync />
                 <SyncErrorBanner />
                 <Drawer
@@ -229,7 +231,8 @@ export default function RootLayout() {
                 <AndroidSystemButtonPanel />
                 {/* Last, so a prompt is drawn above the drawer and the toast. */}
                 <DialogHost />
-                </FriendsProvider>
+                  </FriendsProvider>
+                </GoogleConnectionProvider>
               </StoreProvider>
             </AuthGate>
             </ToastProvider>

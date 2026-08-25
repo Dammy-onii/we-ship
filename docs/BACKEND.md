@@ -30,8 +30,10 @@ someone you are actually connected to, rather than by widening a table policy. G
 tokens are additionally encrypted with AES-GCM before storage
 (`supabase/functions/_shared/crypto.ts`) — a stolen refresh token is a live
 credential to someone's whole Drive and Calendar. Contact identifiers are only
-ever stored as salted hashes. Photo and video originals live in the uploader's
-own Drive; only compact previews are held here.
+ever stored as salted hashes. Pair-scoped Goodie and Memory photo/video
+originals live in the uploader's own Drive, with compact previews held here.
+Friend-board media follows a separate private `friend-media` Supabase Storage
+path: photos are compact copies, while video and voice files are stored there.
 
 **Not protected.** User content — notes, Goodie captions, question answers,
 moods, task titles — is stored as plaintext columns. The project owner can read

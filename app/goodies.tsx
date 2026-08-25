@@ -27,8 +27,10 @@ import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useNativePickerAction } from '@/hooks/use-native-picker';
-import { useGoodies, useUser, YOU_ID } from '@/lib/store';
-import type { Goodie, GoodieKind } from '@/lib/types';
+import { useBackendStatus, useGoodies, useUser, YOU_ID } from '@/lib/store';
+import { useGoogleConnection } from '@/lib/use-google-connection';
+import type { FriendPostKind, Goodie, GoodieKind } from '@/lib/types';
+import { FriendComposer } from '@/components/friend-composer';
 
 const SEND_TYPES: { kind: GoodieKind; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
   { kind: 'photo', label: 'Photo', icon: 'image-outline' },
@@ -38,11 +40,37 @@ const SEND_TYPES: { kind: GoodieKind; label: string; icon: React.ComponentProps<
   { kind: 'reminder', label: 'Reminder', icon: 'alarm-outline' },
 ];
 
+/*
+ * The two places something can go from here.
+ *
+ * The Quick send widget has three tiles and no room for six, so the widget
+ * names the *kind* and this page owns the *destination*. Choosing where a
+ * photo goes is also the one decision worth making with the thing in front of
+ * you rather than from a home screen.
+ */
+
+/** A reminder has no friend-board equivalent, so it falls back to a note. */
+function asFriendKind(kind: GoodieKind): FriendPostKind {
+  return kind === 'reminder' ? 'note' : kind;
+}
+
 export default function GoodiesScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { composer, record } = useLocalSearchParams<{ composer?: string; record?: string }>();
+  const { composer, record, to } = useLocalSearchParams<{
+    composer?: string;
+    record?: string;
+    /** `friends` opens the friend-board composer instead of the partner one. */
+    to?: string;
+  }>();
   const { goodies } = useGoodies();
+  const [destination, setDestination] = useState<'us' | 'friends'>(
+    to === 'friends' ? 'friends' : 'us',
+  );
+
+  const initialKind: GoodieKind = SEND_TYPES.some((type) => type.kind === composer)
+    ? (composer as GoodieKind)
+    : 'photo';
 
   return (
     <KeyboardAvoider
@@ -62,14 +90,40 @@ export default function GoodiesScreen() {
           </Text>
         </View>
 
+        <View style={styles.destinationRow}>
+          {(['us', 'friends'] as const).map((key) => {
+            const selected = destination === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setDestination(key)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={key === 'us' ? 'Send to your partner' : 'Post to friends'}
+                style={[
+                  styles.destinationButton,
+                  {
+                    backgroundColor: selected ? theme.primarySoft : theme.surface,
+                    borderColor: selected ? theme.primary : theme.line,
+                  },
+                ]}>
+                <Ionicons
+                  name={key === 'us' ? 'heart-outline' : 'people-outline'}
+                  size={16}
+                  color={selected ? theme.primaryDeep : theme.textSoft}
+                />
+                <Text variant="bodyStrong" color={selected ? 'primaryDeep' : 'textSoft'}>
+                  {key === 'us' ? 'Us' : 'Friends'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <GoodieComposer
           // Every kind the Quick send widget can deep-link to, not just voice —
           // an unrecognised value used to land silently on the photo composer.
-          initialKind={
-            SEND_TYPES.some((type) => type.kind === composer)
-              ? (composer as GoodieKind)
-              : 'photo'
-          }
+          initialKind={initialKind}
           autoStartRequest={composer === 'voice' ? record : undefined}
         />
 
@@ -85,6 +139,18 @@ export default function GoodiesScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/*
+        Reuses the friend board's own composer rather than teaching the Goodies
+        composer a second backend — the two send through different tables and
+        different policies, and forking one of them to serve both is how they
+        drift apart.
+      */}
+      <FriendComposer
+        visible={destination === 'friends'}
+        initialKind={asFriendKind(initialKind)}
+        onClose={() => setDestination('us')}
+      />
     </KeyboardAvoider>
   );
 }
@@ -97,6 +163,9 @@ function GoodieComposer({
   autoStartRequest?: string;
 }) {
   const theme = useTheme();
+  const router = useRouter();
+  const sync = useBackendStatus();
+  const { driveConnected } = useGoogleConnection();
   const { addGoodie } = useGoodies();
   const [kind, setKind] = useState<GoodieKind>(initialKind);
   const [text, setText] = useState('');
@@ -122,6 +191,10 @@ function GoodieComposer({
       ImagePicker.launchImageLibraryAsync({
         mediaTypes: kind === 'video' ? ['videos'] : ['images'],
         allowsEditing: false,
+        // One at a time: only the first asset is ever read, so letting the
+        // picker take ten made the other nine vanish without explanation.
+        allowsMultipleSelection: false,
+        selectionLimit: 1,
         quality: 0.9,
       }),
     );
@@ -129,12 +202,16 @@ function GoodieComposer({
   };
 
   const canSend =
-    ((kind === 'photo' || kind === 'video') && Boolean(mediaAsset)) ||
+    ((kind === 'photo' || kind === 'video') &&
+      Boolean(mediaAsset) &&
+      (sync.mode !== 'live' || driveConnected === true)) ||
     ((kind === 'note' || kind === 'reminder') && Boolean(text.trim()));
+  const mediaNeedsDrive =
+    sync.mode === 'live' && (kind === 'photo' || kind === 'video') && driveConnected !== true;
 
   /** Voice notes are sent from the recorder itself, so they carry their own take. */
   const send = async (voice?: { uri: string; durationSeconds: number }) => {
-    if ((!canSend && !voice) || sending) return;
+    if ((!canSend && !voice) || sending) return false;
     setSending(true);
     setUploadProgress(0);
     try {
@@ -154,8 +231,10 @@ function GoodieComposer({
       setText('');
       setMediaAsset(undefined);
       Keyboard.dismiss();
+      return true;
     } catch (error) {
       showDialog('Could not send Goodie', userFacingError(error, 'Please try again.'));
+      return false;
     } finally {
       setSending(false);
       setUploadProgress(0);
@@ -191,19 +270,35 @@ function GoodieComposer({
       </ScrollView>
 
       {kind === 'photo' || kind === 'video' ? (
-        <Pressable
-          onPress={pickMedia}
-          style={[styles.mediaPicker, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
-          {mediaAsset?.uri && kind === 'photo' ? (
-            <Image source={{ uri: mediaAsset.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-          ) : (
-            <>
-              <Ionicons name={kind === 'video' ? 'videocam-outline' : 'images-outline'} size={30} color={theme.primary} />
-              <Text variant="bodyStrong">{mediaAsset ? 'Video selected' : `Choose a ${kind}`}</Text>
-              <Text variant="caption" color="textFaint">Original → your Drive · small preview → Weship</Text>
-            </>
-          )}
-        </Pressable>
+        <>
+          {mediaNeedsDrive ? (
+            <View style={[styles.driveNotice, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
+              <Ionicons name="logo-google" size={21} color={theme.primaryDeep} />
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyStrong">Connect Google Drive to share media</Text>
+                <Text variant="caption" color="textFaint">
+                  Photo and video originals are stored in your Google Drive. Weship keeps only a small private preview.
+                </Text>
+              </View>
+              <Button label="Connect" size="sm" variant="soft" onPress={() => router.push('/connections')} />
+            </View>
+          ) : null}
+          <Pressable
+            onPress={mediaNeedsDrive ? () => router.push('/connections') : pickMedia}
+            style={[styles.mediaPicker, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
+            {mediaAsset?.uri && kind === 'photo' ? (
+              <Image source={{ uri: mediaAsset.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            ) : (
+              <>
+                <Ionicons name={kind === 'video' ? 'videocam-outline' : 'images-outline'} size={30} color={theme.primary} />
+                <Text variant="bodyStrong">
+                  {mediaNeedsDrive ? 'Connect Drive before choosing media' : mediaAsset ? 'Video selected' : `Choose a ${kind}`}
+                </Text>
+                <Text variant="caption" color="textFaint">Original → your Drive · small preview → Weship</Text>
+              </>
+            )}
+          </Pressable>
+        </>
       ) : null}
 
       {kind === 'voice' ? (
@@ -359,6 +454,17 @@ const styles = StyleSheet.create({
   intro: { gap: Spacing.sm, paddingTop: Spacing.sm },
   section: { gap: Spacing.sm },
   composer: { gap: Spacing.md },
+  destinationRow: { flexDirection: 'row', gap: Spacing.sm },
+  destinationButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderRadius: Radius.chip,
+  },
   typeRow: { gap: Spacing.sm },
   typeButton: {
     minHeight: 42,
@@ -377,6 +483,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
+  },
+  driveNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radius.inset,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   input: {
     minHeight: 112,

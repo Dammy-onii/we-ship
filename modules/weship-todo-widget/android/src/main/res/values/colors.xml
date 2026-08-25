@@ -11,7 +11,18 @@
   <color name="weship_widget_scrim">#8C18201B</color>
   <color name="weship_widget_on_scrim">#FCFAF7</color>
   <color name="weship_widget_button_fill">#E8E3DC</color>
+  <color name="weship_widget_surface">#FCFAF7</color>
+  <color name="weship_widget_line">#DED7CF</color>
+  <color name="weship_widget_mood_fill">#EADDD7</color>
+  <color name="weship_widget_photo_fill">#E2ECE4</color>
+  <color name="weship_widget_voice_fill">#EEDFD9</color>
+  <color name="weship_widget_note_fill">#ECE6D2</color>
   <!-- Sits over photography, so it is dark regardless of the slide. -->
   <color name="weship_widget_control_fill">#7A18201B</color>
   <color name="weship_widget_preview_end">#A8765C</color>
+  <!-- Empty-state landscape. Mirrors the EmptySpotlight illustration in the
+       app so the two surfaces show the same picture. -->
+  <color name="weship_widget_sky">#9AAAB3</color>
+  <color name="weship_widget_sky_low">#DCD8D2</color>
+  <color name="weship_widget_peak_near">#4B2F24</color>
 </resources>

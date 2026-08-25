@@ -3,6 +3,13 @@ import { requireOptionalNativeModule } from 'expo';
 import type { WidgetSnapshot } from '@/lib/widget-snapshot';
 
 export type TopIncompleteTask = { label: string; routine: string } | null;
+export type WidgetAction = { type: string; id: string; at: number };
+export type WidgetSession = {
+  url: string;
+  anonKey: string;
+  accessToken: string;
+  timezone: string;
+};
 
 /**
  * `expo-widgets` widgets are separate typed surfaces, so the snapshot is
@@ -53,13 +60,18 @@ function push(load: () => { default: unknown }, props: object) {
 
 export function syncTopTodoWidget(task: TopIncompleteTask) {
   push(() => require('./TopTodoWidget'), {
-    title: task?.label ?? 'All caught up',
-    routine: task?.routine ?? '',
-    empty: !task,
+    tasks: JSON.stringify(task ? [{ id: 'next', label: task.label, routine: task.routine, done: false }] : []),
+    done: 0,
+    total: task ? 1 : 0,
   });
 }
 
 export function syncWidgetSnapshot(snapshot: WidgetSnapshot) {
+  push(() => require('./TopTodoWidget'), {
+    tasks: JSON.stringify(snapshot.todos),
+    done: snapshot.todos.filter((task) => task.done).length,
+    total: snapshot.todos.length,
+  });
   push(() => require('./PartnerCarouselWidget'), {
     slides: JSON.stringify(snapshot.partnerSlides),
     title: 'Us',
@@ -90,6 +102,7 @@ export function syncWidgetSnapshot(snapshot: WidgetSnapshot) {
       lastExchange: snapshot.presence.lastExchange,
       pendingTask: snapshot.presence.pendingTask,
       streak: snapshot.streak?.count ?? 0,
+      questionProgress: `${Number(snapshot.streak?.youAnswered ?? false) + Number(snapshot.streak?.partnerAnswered ?? false)}/2 answered`,
       lastSeen: snapshot.presence.lastSeen,
     });
   }
@@ -100,7 +113,7 @@ export function syncWidgetSnapshot(snapshot: WidgetSnapshot) {
 }
 
 /** iOS performs widget actions in-app via the interaction listener. */
-export function setWidgetSession(_session: { url: string; anonKey: string; accessToken: string } | null) {}
+export function setWidgetSession(_session: WidgetSession | null) {}
 
 export const WIDGET_KINDS = [
   'partner-carousel',
@@ -119,9 +132,11 @@ export async function requestWidgetPin(_kind?: string): Promise<boolean> {
 }
 
 /** Nothing is queued on iOS: AppIntents wake the app, which acts immediately. */
-export async function drainWidgetActions(): Promise<{ type: string; id: string; at: number }[]> {
+export async function drainWidgetActions(): Promise<WidgetAction[]> {
   return [];
 }
+
+export async function acknowledgeWidgetActions(_actions: WidgetAction[]): Promise<void> {}
 
 /**
  * Bridges an in-widget button press back into the app.

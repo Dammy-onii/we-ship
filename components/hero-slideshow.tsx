@@ -2,7 +2,13 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Text } from '@/components/ui/text';
 import { useTheme } from '@/hooks/use-theme';
@@ -22,7 +28,6 @@ const MAX_SLIDES = 8;
  * rather than slide, so the presence text layered above stays readable.
  */
 export function HeroSlideshow({ goodies, height }: { goodies: Goodie[]; height: number }) {
-  const theme = useTheme();
   const slides = useMemo(
     () =>
       goodies
@@ -51,11 +56,7 @@ export function HeroSlideshow({ goodies, height }: { goodies: Goodie[]; height: 
           <Slide goodie={current} />
         </Animated.View>
       ) : (
-        // A space with nothing shared yet gets a solid ground rather than an
-        // image. Deep enough that the presence text above it keeps the same
-        // light treatment it has over a photo, so the hero does not change
-        // character the moment the first photo arrives.
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.heroEmpty }]} />
+        <EmptyGround />
       )}
 
       {slides.length > 1 ? (
@@ -70,6 +71,48 @@ export function HeroSlideshow({ goodies, height }: { goodies: Goodie[]; height: 
       ) : null}
     </View>
   );
+}
+
+/**
+ * The hero before the pair has shared anything.
+ *
+ * A single flat colour read as a rendering failure rather than a design — the
+ * Home screen simply looked broken until the first photo arrived. This drifts
+ * through a small set of deep grounds on the same cadence the real slideshow
+ * uses, so an empty space still has the quiet motion of a full one.
+ */
+function EmptyGround() {
+  const theme = useTheme();
+  const colors = theme.heroEmptyCycle;
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (colors.length < 2) return;
+    const timer = setInterval(() => setIndex((i) => (i + 1) % colors.length), ADVANCE_MS);
+    return () => clearInterval(timer);
+  }, [colors.length]);
+
+  /*
+   * The colour itself is animated, on one view that never unmounts.
+   *
+   * Keying a view by its colour and fading the new one in looked like a flare
+   * followed by a drop: remounting meant each colour faded up from nothing
+   * rather than out of the colour before it, so the ground showed through the
+   * gap. Reanimated interpolates between two colours directly, which is what
+   * "one shade drifting into the next" actually needs.
+   */
+  const ground = useAnimatedStyle(() => ({
+    backgroundColor: withTiming(colors[index], {
+      // Half the dwell time, so the hero is nearly always mid-drift rather than
+      // sitting still and then switching.
+      duration: ADVANCE_MS / 2,
+      easing: Easing.inOut(Easing.cubic),
+    }),
+  }));
+
+  // The static colour underneath is what the very first frame paints, before
+  // the animation has a previous value to move away from.
+  return <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors[0] }, ground]} />;
 }
 
 function Slide({ goodie }: { goodie: Goodie }) {

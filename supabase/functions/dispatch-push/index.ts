@@ -56,7 +56,7 @@ Deno.serve(async (request) => {
         ...(activity.action_data ?? {}),
       },
       categoryId: activity.kind === 'friend_request' ? 'friend_request' : undefined,
-      channelId: 'weship-updates-v3',
+      channelId: 'weship-updates-v4',
     }));
     if (!messages.length) return json({ sent: 0 });
     const response = await fetch('https://exp.host/--/api/v2/push/send', {

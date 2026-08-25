@@ -60,7 +60,8 @@ Only the uploader can delete a Drive-primary item from Weship. That operation de
 
 - iOS uses `expo-widgets` plus the TypeScript/SwiftUI `TopTodoWidget`.
 - Android uses the local `weship-todo-widget` Expo module and `AppWidgetProvider`/`RemoteViews`; SDK 57's Android `expo-widgets` renderer is still a placeholder.
-- Widgets receive only the locally cached top incomplete 2do and a deep link. Auth tokens never enter widget storage.
+- Android carousel widgets use a flat `AdapterViewFlipper` backed by `RemoteViewsService`. The platform supports one-item flipping and explicit previous/next actions here, but not a custom horizontal drag gesture.
+- iOS widgets receive snapshots and deep links only. Android's interactive 2do widget also keeps the current short-lived Supabase access token and user timezone in app-private preferences so it can complete a task while the app sleeps; sign-out clears that session, and no refresh token or service-role secret enters widget storage.
 - Device push tokens are registered after explicit permission and stored per user/device.
 - Service-role and Google secrets live only in Supabase functions. Provider tokens are AES-GCM encrypted before service-role-only storage in the private schema.
 - A failed/ambiguous finalization never blindly deletes a committed original: the discard endpoint checks for a ready database reference first.

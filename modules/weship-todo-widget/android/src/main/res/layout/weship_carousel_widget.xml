@@ -3,41 +3,51 @@
   Deliberately has no background of its own.
 
   The widget root and every slide both painted the same rounded card, so the
-  card was drawn twice — once behind the StackView and once inside it — and the
-  photo appeared to float in a white frame instead of filling the widget.
+  card was drawn twice and the photo appeared to float in a white frame instead
+  of filling the widget. AdapterViewFlipper keeps exactly one flat slide visible.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/weship_carousel_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent">
 
-  <StackView
-    android:id="@+id/weship_carousel_stack"
+  <!-- flipInterval was fifteen minutes, which reads as "never moves" to anyone
+       actually looking at it. Half a minute is slow enough to ignore and fast
+       enough to notice. -->
+  <AdapterViewFlipper
+    android:id="@+id/weship_carousel"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:loopViews="true"
-    android:autoStart="true" />
+    android:autoStart="true"
+    android:animateFirstView="false"
+    android:flipInterval="30000"
+    android:loopViews="true" />
 
-  <LinearLayout
+  <!--
+    Empty state, drawn as a slide rather than as a message on a blank card.
+
+    The widget's whole job is to show a picture, so an empty one should still
+    look like the thing it will become — the same landscape the app's Spotlight
+    shows when nothing has been shared, with the message riding in the scrim
+    exactly where a real caption would.
+  -->
+  <!--
+    Never normally seen: the adapter substitutes two placeholder slides when
+    there is nothing to show, so the collection is never empty. Kept only as the
+    fallback for the moment before the factory has bound.
+  -->
+  <TextView
     android:id="@+id/weship_carousel_empty"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:gravity="center"
     android:padding="18dp"
-    android:background="@drawable/weship_widget_background">
-
-    <TextView
-      android:id="@+id/weship_carousel_empty_text"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:gravity="center"
-      android:textSize="13sp"
-      android:textColor="@color/weship_widget_secondary" />
-  </LinearLayout>
+    android:background="@drawable/weship_widget_background"
+    android:textSize="13sp"
+    android:textColor="@color/weship_widget_secondary" />
 
   <!--
-    Arrows sit on the widget root rather than inside the stack: a view inside a
+    Arrows sit on the widget root rather than inside the collection: a view inside a
     RemoteViews collection can only carry a fill-in intent, so it cannot run an
     action of its own.
   -->

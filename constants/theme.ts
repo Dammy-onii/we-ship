@@ -57,6 +57,17 @@ export const Palette = {
     scrim: 'rgba(24,32,27,0.55)',
     /** Ground behind the Home hero before the pair has shared any imagery. */
     heroEmpty: '#4A423B',
+    /**
+     * The empty hero cycles through these rather than holding one flat colour.
+     *
+     * Every entry is deep enough that the light presence text above keeps the
+     * treatment it has over a photograph, so the hero does not change character
+     * the moment the pair's first photo arrives.
+     */
+    // Matched to within 2% relative luminance of each other on purpose: the
+    // hero drifts in hue while its brightness holds steady, so the transition
+    // reads as one ground shifting rather than the screen pulsing.
+    heroEmptyCycle: ['#4A423B', '#45433E', '#4E4038', '#404441', '#4E4037'],
     // template-compat keys
     tint: '#704936',
     icon: '#5F5D59',
@@ -92,6 +103,8 @@ export const Palette = {
     scrim: 'rgba(8,8,8,0.62)',
     /** Ground behind the Home hero before the pair has shared any imagery. */
     heroEmpty: '#2A2622',
+    /** See the note on the light palette. */
+    heroEmptyCycle: ['#2A2622', '#262724', '#2D2521', '#242825', '#2E2520'],
     tint: '#B8B5AF',
     icon: '#B8B4AD',
     background: '#161616',

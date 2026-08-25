@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
         title: 'Reminder from your partner',
         body: reminder.body ?? 'Open Weship to see your reminder.',
         data: { url: '/goodies', goodieId: reminder.reminder_id },
-        channelId: 'weship-updates-v3',
+        channelId: 'weship-updates-v4',
         _contentAvailable: true,
       }));
       if (messages.length) {
@@ -45,11 +45,62 @@ Deno.serve(async (request) => {
         .is('reminder_sent_at', null);
       if (markError) throw markError;
     }
-    return json({ processed: reminders?.length ?? 0, sent });
+    const purged = await purgeExpiredFriendPosts();
+    return json({ processed: reminders?.length ?? 0, sent, purged });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Reminder dispatch failed' }, 400);
   }
 });
+
+/** Must match FRIEND_POST_TTL_MS in lib/friend-post-ttl.ts. */
+const FRIEND_POST_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+
+/**
+ * Deletes friend posts past their lifetime, and the media they own.
+ *
+ * Rides on the reminder schedule rather than a cron entry of its own: this is
+ * already a trusted, service-role, once-a-minute job, and an indexed delete by
+ * age costs almost nothing when there is nothing to do.
+ *
+ * The storage objects go through the Storage API, not a `delete from
+ * storage.objects` — the SQL route unlinks the metadata row and leaves the
+ * actual file orphaned in the bucket.
+ *
+ * Failures here are swallowed on purpose. Expired posts are already invisible
+ * (the read policy hides them), so a purge that could not run is a housekeeping
+ * problem, not a correctness one, and it must never cost a reminder its push.
+ */
+async function purgeExpiredFriendPosts(): Promise<number> {
+  try {
+    const cutoff = new Date(Date.now() - FRIEND_POST_TTL_MS).toISOString();
+    const { data: expired, error } = await service
+      .from('friend_posts')
+      .select('id, storage_path')
+      .lte('created_at', cutoff)
+      // Bounded so one very old backlog cannot stall the minute's reminders.
+      // Whatever is left is taken by the next run.
+      .limit(500);
+    if (error) throw error;
+    if (!expired?.length) return 0;
+
+    const paths = expired
+      .map((post) => post.storage_path)
+      .filter((path): path is string => Boolean(path));
+    if (paths.length) {
+      const { error: storageError } = await service.storage.from('friend-media').remove(paths);
+      if (storageError) throw storageError;
+    }
+
+    const { error: deleteError } = await service
+      .from('friend_posts')
+      .delete()
+      .in('id', expired.map((post) => post.id));
+    if (deleteError) throw deleteError;
+    return expired.length;
+  } catch {
+    return 0;
+  }
+}
 
 async function equalSecret(received: string, expected: string) {
   const encoder = new TextEncoder();

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The peaks, sun and ground of the empty-state landscape.
+
+  A vector rather than a layer-list because a layer-list cannot rotate or slant
+  anything, and a "mountain" built from rounded rectangles reads as a slab. Paths
+  give real diagonals. The sky sits behind this as a gradient shape, so this
+  drawable is deliberately transparent above the ridgeline.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="100dp"
+  android:height="70dp"
+  android:viewportWidth="100"
+  android:viewportHeight="70">
+
+  <!-- Sun, left of centre so it never sits under a widget's own controls. -->
+  <path
+    android:fillColor="@color/weship_widget_surface"
+    android:fillAlpha="0.92"
+    android:pathData="M24,17 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+
+  <!-- Far peak, palest and furthest back. -->
+  <path
+    android:fillColor="@color/weship_widget_mood_fill"
+    android:pathData="M4,70 L26,33 L48,70 Z" />
+
+  <!-- Mid peak. -->
+  <path
+    android:fillColor="@color/weship_widget_preview_end"
+    android:pathData="M46,70 L74,24 L102,70 Z" />
+
+  <!-- Near peak, darkest, overlapping the other two. -->
+  <path
+    android:fillColor="@color/weship_widget_peak_near"
+    android:pathData="M28,70 L54,36 L80,70 Z" />
+
+  <!-- Ground. -->
+  <path
+    android:fillColor="@color/weship_widget_peak_near"
+    android:pathData="M0,62 L100,62 L100,70 L0,70 Z" />
+</vector>

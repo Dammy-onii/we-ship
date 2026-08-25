@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/app-header';
 import { MediaViewer } from '@/components/media-viewer';
 import { SpotlightSection } from '@/components/spotlight-grid';
 import { DataState } from '@/components/ui/data-state';
+import { EmptySpotlight } from '@/components/empty-spotlight';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
@@ -129,10 +130,11 @@ export default function SpotlightScreen() {
         {sync.loading && !goodies.length ? (
           <DataState compact loading title="Gathering today’s Goodies" />
         ) : !visible.length ? (
-          <DataState
-            icon="sparkles-outline"
+          <EmptySpotlight
             title={filter === 'all' ? 'Nothing shared yet' : 'Nothing here yet'}
             detail={`Send the first ${filter === 'all' ? 'Goodie' : filter} and it will appear here for both of you.`}
+            sampleNote="Made it to the top. Wish you were here for this bit."
+            sampleAuthor={partner.displayName}
           />
         ) : (
           <>

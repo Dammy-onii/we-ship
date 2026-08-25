@@ -1,6 +1,8 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
+import { FRIEND_POST_TTL_MS } from './friend-post-ttl';
+
 /**
  * On-device cache for shared media.
  *
@@ -30,8 +32,13 @@ const FRIEND_FOLDER = 'friends';
 
 export type CacheScope = 'shared' | 'friend';
 
-/** How long friend media survives after it is first downloaded. */
-export const FRIEND_MEDIA_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+/**
+ * How long friend media survives after it is first downloaded.
+ *
+ * Deliberately the same clock as the post itself: a cached file that outlived
+ * the row it belongs to would keep a deleted post on screen in the widget.
+ */
+export const FRIEND_MEDIA_TTL_MS = FRIEND_POST_TTL_MS;
 
 /** Web has no writable file system here; callers fall back to the remote URL. */
 const supported = Platform.OS !== 'web';

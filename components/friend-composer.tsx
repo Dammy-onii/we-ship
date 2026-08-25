@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Modal,
@@ -24,18 +23,7 @@ import { useNativePickerAction } from '@/hooks/use-native-picker';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useFriends } from '@/lib/friends';
-import { useGoogleConnection } from '@/lib/use-google-connection';
 import type { FriendPostKind } from '@/lib/types';
-
-/**
- * How many photos one post may carry.
- *
- * Without Drive the originals have nowhere of the user's own to live, so the
- * app is the one absorbing the storage — hence the tighter cap, and a prompt
- * explaining what lifts it rather than a bare refusal.
- */
-const MAX_PHOTOS_WITHOUT_DRIVE = 2;
-const MAX_PHOTOS_WITH_DRIVE = 10;
 
 const KINDS: {
   kind: FriendPostKind;
@@ -56,27 +44,29 @@ const KINDS: {
  * position. Separate from the Goodies composer because the destinations differ
  * — Goodies are for the partner only, this posts to every friend.
  */
-export function FriendComposer({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function FriendComposer({
+  visible,
+  onClose,
+  initialKind = 'note',
+}: {
+  visible: boolean;
+  onClose: () => void;
+  /** Seeded by the Quick send widget, which names the kind before this opens. */
+  initialKind?: FriendPostKind;
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { post } = useFriends();
-  const [kind, setKind] = useState<FriendPostKind>('note');
+  const [kind, setKind] = useState<FriendPostKind>(initialKind);
   const [text, setText] = useState('');
-  const [mediaAssets, setMediaAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const [mediaAsset, setMediaAsset] = useState<ImagePicker.ImagePickerAsset>();
   const [sending, setSending] = useState(false);
   const runPicker = useNativePickerAction();
-  const { driveConnected } = useGoogleConnection();
-
-  // Until the grant is known, assume the generous limit: tightening it on a
-  // slow network read would be a worse surprise than briefly allowing more.
-  const photoLimit =
-    driveConnected === false ? MAX_PHOTOS_WITHOUT_DRIVE : MAX_PHOTOS_WITH_DRIVE;
 
   const reset = () => {
-    setKind('note');
+    setKind(initialKind);
     setText('');
-    setMediaAssets([]);
+    setMediaAsset(undefined);
   };
 
   const close = () => {
@@ -87,7 +77,7 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
 
   const selectKind = (next: FriendPostKind) => {
     setKind(next);
-    setMediaAssets([]);
+    setMediaAsset(undefined);
   };
 
   const pickMedia = async () => {
@@ -101,58 +91,47 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
         mediaTypes: kind === 'video' ? ['videos'] : ['images'],
         allowsEditing: false,
         quality: 0.9,
-        // Videos stay one at a time: they are large enough that batching them
-        // is a slow upload with no obvious progress.
-        allowsMultipleSelection: kind === 'photo',
-        selectionLimit: kind === 'photo' ? photoLimit : 1,
+        // Every post is one piece of media. Explicitly disabling multi-select
+        // also keeps OEM Android pickers from retaining their last batch mode.
+        allowsMultipleSelection: false,
+        selectionLimit: 1,
       }),
     );
     if (result.canceled) return;
-    // `selectionLimit` is advisory on some Android pickers, so the cap is
-    // applied again here rather than trusted.
-    const chosen = result.assets.slice(0, kind === 'photo' ? photoLimit : 1);
-    setMediaAssets(chosen);
-    if (kind === 'photo' && result.assets.length > chosen.length) {
-      showDialog(
-        'Two photos at a time',
-        'Connect Google Drive in Connections to share up to ten at once. Your originals stay in your own Drive.',
-      );
-    }
+    // Some vendor pickers ignore selectionLimit; consuming only the first
+    // result keeps the one-post/one-file contract true regardless.
+    setMediaAsset(result.assets[0]);
   };
 
   const canSend =
     (kind === 'note' && Boolean(text.trim())) ||
-    ((kind === 'photo' || kind === 'video') && mediaAssets.length > 0);
+    ((kind === 'photo' || kind === 'video') && Boolean(mediaAsset));
 
   /** Voice posts are sent from the recorder itself, so they carry their own take. */
   const send = async (voice?: { uri: string; durationSeconds: number }) => {
-    if ((!canSend && !voice) || sending) return;
+    if ((!canSend && !voice) || sending) return false;
     setSending(true);
     try {
-      if (voice || !mediaAssets.length) {
+      if (voice || !mediaAsset) {
         await post({ kind, text: text.trim() || undefined, uri: voice?.uri, durationSeconds: voice?.durationSeconds });
       } else {
-        // One row per photo: `friend_posts` carries a single media reference,
-        // and a batch is just several of them. Sequential rather than parallel
-        // so a slow connection uploads one at a time instead of stalling on all.
-        for (const [index, asset] of mediaAssets.entries()) {
-          await post({
-            kind,
-            // The caption belongs to the batch, so only the first carries it.
-            text: index === 0 ? text.trim() || undefined : undefined,
-            uri: asset.uri,
-            fileName: asset.fileName,
-            mimeType: asset.mimeType,
-            sizeBytes: asset.fileSize,
-            width: asset.width,
-            height: asset.height,
-          });
-        }
+        await post({
+          kind,
+          text: text.trim() || undefined,
+          uri: mediaAsset.uri,
+          fileName: mediaAsset.fileName,
+          mimeType: mediaAsset.mimeType,
+          sizeBytes: mediaAsset.fileSize,
+          width: mediaAsset.width,
+          height: mediaAsset.height,
+        });
       }
       reset();
       onClose();
+      return true;
     } catch (error) {
       showDialog('Could not post', userFacingError(error, 'Please try again.'));
+      return false;
     } finally {
       setSending(false);
     }
@@ -223,17 +202,12 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
                 <Pressable
                   onPress={pickMedia}
                   style={[styles.picker, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
-                  {mediaAssets.length && kind === 'photo' ? (
-                    <View style={styles.thumbRow}>
-                      {mediaAssets.map((asset) => (
-                        <Image
-                          key={asset.assetId ?? asset.uri}
-                          source={{ uri: asset.uri }}
-                          style={styles.thumb}
-                          contentFit="cover"
-                        />
-                      ))}
-                    </View>
+                  {mediaAsset && kind === 'photo' ? (
+                    <Image
+                      source={{ uri: mediaAsset.uri }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                    />
                   ) : (
                     <>
                       <Ionicons
@@ -242,36 +216,19 @@ export function FriendComposer({ visible, onClose }: { visible: boolean; onClose
                         color={theme.primary}
                       />
                       <Text variant="bodyStrong">
-                        {mediaAssets.length
+                        {mediaAsset
                           ? 'Video selected'
                           : kind === 'photo'
-                            ? `Choose up to ${photoLimit} photos`
+                            ? 'Choose one photo'
                             : 'Choose a video'}
                       </Text>
                     </>
                   )}
                 </Pressable>
 
-                {/* Says what lifts the limit, rather than only that there is one. */}
-                {kind === 'photo' && driveConnected === false ? (
-                  <Pressable
-                    onPress={() => {
-                      close();
-                      router.push('/connections');
-                    }}
-                    style={({ pressed }) => [
-                      styles.driveNudge,
-                      { backgroundColor: theme.primarySoft },
-                      pressed && { opacity: 0.75 },
-                    ]}>
-                    <Ionicons name="cloud-upload-outline" size={17} color={theme.primaryDeep} />
-                    <Text variant="caption" color="primaryDeep" style={{ flex: 1 }}>
-                      Two photos at a time. Connect Google Drive to share up to{' '}
-                      {MAX_PHOTOS_WITH_DRIVE} — originals stay in your own Drive.
-                    </Text>
-                    <Ionicons name="chevron-forward" size={15} color={theme.primaryDeep} />
-                  </Pressable>
-                ) : null}
+                <Text variant="caption" color="textFaint">
+                  Friend posts use private Weship storage; they do not use your Google Drive.
+                </Text>
               </>
             ) : null}
 
@@ -335,15 +292,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-  },
-  thumbRow: { ...StyleSheet.absoluteFill, flexDirection: 'row', gap: 2 },
-  thumb: { flex: 1, height: '100%' },
-  driveNudge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: Radius.inset,
   },
   picker: {
     height: 168,

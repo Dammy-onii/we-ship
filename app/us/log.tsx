@@ -195,39 +195,53 @@ export default function TodoScreen() {
         </View>
       ) : null}
 
-      {missed.length ? (
-        <View style={styles.section}>
-          <View style={styles.missedHead}>
-            <Text variant="micro" color="textFaint">
-              SLIPPED THROUGH
-            </Text>
-            <Text variant="micro" color="textFaint">
-              {missed.length}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.taskList,
-              { borderTopColor: theme.line, borderBottomColor: theme.line },
-            ]}>
-            {missed.slice(0, VISIBLE_MISSED).map((item, index) => (
-              <MissedRow
-                key={`${item.taskId}-${item.periodKey}`}
-                item={item}
-                separated={index > 0}
-                partnerName={partner.displayName}
-              />
-            ))}
-          </View>
-          {missed.length > VISIBLE_MISSED ? (
-            <Button
-              variant="ghost"
-              label={`See all ${missed.length}`}
-              onPress={() => setShowAllMissed(true)}
-            />
-          ) : null}
+      <View style={styles.section}>
+        <View style={styles.missedHead}>
+          <Text variant="micro" color="textFaint">
+            MISSED PERIODS
+          </Text>
+          <Text variant="micro" color="textFaint">
+            {missed.length}
+          </Text>
         </View>
-      ) : null}
+        {missed.length ? (
+          <>
+            <View
+              style={[
+                styles.taskList,
+                { borderTopColor: theme.line, borderBottomColor: theme.line },
+              ]}>
+              {missed.slice(0, VISIBLE_MISSED).map((item, index) => (
+                <MissedRow
+                  key={`${item.taskId}-${item.periodKey}`}
+                  item={item}
+                  separated={index > 0}
+                  partnerName={partner.displayName}
+                />
+              ))}
+            </View>
+            {missed.length > VISIBLE_MISSED ? (
+              <Button
+                variant="ghost"
+                label={`See all ${missed.length}`}
+                onPress={() => setShowAllMissed(true)}
+              />
+            ) : null}
+          </>
+        ) : (
+          <View style={[styles.missedEmpty, { backgroundColor: theme.surfaceAlt }]}>
+            <View style={[styles.missedDot, { backgroundColor: theme.surface }]}>
+              <Ionicons name="calendar-outline" size={15} color={theme.textFaint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="bodyStrong">No missed periods</Text>
+              <Text variant="caption" color="textFaint">
+                Finished daily, weekly and monthly intervals will appear here when either person leaves a task open.
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
 
       <View style={styles.footer}>
         <Sprig size={25} color={theme.primary} opacity={0.45} />
@@ -277,10 +291,10 @@ function MissedRow({
   // sentence rather than a subject glued to a fixed verb — "Neither of you" and
   // "didn't do this" collided into a double negative.
   const sentence = item.missedByYou && item.missedByPartner
-    ? `Neither of you did this ${item.when}`
+    ? 'Neither of you completed this'
     : item.missedByYou
-      ? `You didn’t do this ${item.when}`
-      : `${partnerName} didn’t do this ${item.when}`;
+      ? 'You did not complete this'
+      : `${partnerName} did not complete this`;
 
   return (
     <View
@@ -298,6 +312,12 @@ function MissedRow({
         <Text variant="caption" color="textFaint">
           {sentence}
         </Text>
+        <View style={styles.missedPeriod}>
+          <Ionicons name="calendar-outline" size={12} color={theme.textFaint} />
+          <Text variant="micro" color="textFaint">
+            {item.periodLabel}
+          </Text>
+        </View>
       </View>
       <Text variant="micro" color="textFaint">
         {item.routine.toUpperCase()}
@@ -331,7 +351,7 @@ function MissedSheet({
           <View style={[styles.grabber, { backgroundColor: theme.line }]} />
           <View style={styles.sheetHead}>
             <View style={{ flex: 1 }}>
-              <Text variant="title">Slipped through</Text>
+              <Text variant="title">Missed periods</Text>
               <Text variant="caption" color="textFaint">
                 {`${missed.length} missed ${missed.length === 1 ? 'period' : 'periods'}`}
               </Text>
@@ -350,7 +370,7 @@ function MissedSheet({
               />
             ))}
             <Text variant="caption" color="textFaint" center style={{ paddingVertical: Spacing.md }}>
-              Daily tasks are tracked for a week, weekly ones for three weeks.
+              Daily tasks are tracked for a week, weekly ones for three weeks, and monthly ones for two months.
             </Text>
           </ScrollView>
         </View>
@@ -689,6 +709,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     paddingVertical: Spacing.md,
+    // The list around these rows bleeds to the screen edge so its rules run
+    // full width. Without this the *content* bled with it, and the routine
+    // label on the right was clipped by the edge of the display.
+    paddingHorizontal: Spacing.lg,
+  },
+  missedPeriod: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  missedEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderRadius: Radius.inset,
+    padding: Spacing.base,
   },
   missedDot: {
     width: 30,

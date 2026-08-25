@@ -44,6 +44,10 @@ app-example
 /ios
 /android
 
+# generated local Expo-module build output
+/modules/*/android/build/
+/modules/*/ios/build/
+
 # Firebase / Google service-account private keys.
 # `google-services.json` is deliberately NOT ignored — it holds no secret and
 # EAS builds from the Git tree, so ignoring it makes push fail silently.

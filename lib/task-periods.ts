@@ -19,6 +19,8 @@ export type MissedPeriod = {
   periodKey: string;
   /** How to say it: "yesterday", "last week", "in March". */
   when: string;
+  /** Exact closed interval: "Aug 22, 2026" or "Aug 18–24, 2026". */
+  periodLabel: string;
   /** True when you did not complete it. */
   missedByYou: boolean;
   /** True when your partner did not complete it. */
@@ -43,9 +45,8 @@ export type CompletionRow = { taskId: string; userId: string; periodKey: string 
 export const LOOKBACK_DAYS: Record<TaskRoutine, number> = {
   daily: 7,
   weekly: 21,
-  // Only the open period. Reaching a whole month further back would more than
-  // quadruple the rows fetched on every sync, for one extra data point.
-  monthly: 0,
+  // Two closed monthly periods are useful history and still a small query.
+  monthly: 62,
 };
 
 /** Widest lookback, which is what the fetch has to cover. */
@@ -76,6 +77,30 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+const SHORT_MONTHS = MONTHS.map((month) => month.slice(0, 3));
+
+/** Exact date or date range for the closed period. */
+function labelPeriod(routine: TaskRoutine, periodKey: string): string {
+  const start = new Date(`${periodKey}T00:00:00Z`);
+  const year = start.getUTCFullYear();
+  const month = start.getUTCMonth();
+  const day = start.getUTCDate();
+  if (routine === 'monthly') return `${MONTHS[month]} ${year}`;
+  if (routine === 'daily') return `${SHORT_MONTHS[month]} ${day}, ${year}`;
+
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const endYear = end.getUTCFullYear();
+  const endMonth = end.getUTCMonth();
+  const endDay = end.getUTCDate();
+  if (year === endYear && month === endMonth) {
+    return `${SHORT_MONTHS[month]} ${day}–${endDay}, ${year}`;
+  }
+  if (year === endYear) {
+    return `${SHORT_MONTHS[month]} ${day}–${SHORT_MONTHS[endMonth]} ${endDay}, ${year}`;
+  }
+  return `${SHORT_MONTHS[month]} ${day}, ${year}–${SHORT_MONTHS[endMonth]} ${endDay}, ${endYear}`;
+}
 
 /** Plain words for a period, relative to now where that reads better. */
 function describe(routine: TaskRoutine, periodKey: string, now: Date): string {
@@ -144,6 +169,7 @@ export function findMissedPeriods(
           routine: task.routine,
           periodKey,
           when: describe(task.routine, periodKey, now),
+          periodLabel: labelPeriod(task.routine, periodKey),
           missedByYou,
           missedByPartner,
         });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  acknowledgeWidgetActions,
   drainWidgetActions,
   onWidgetInteraction,
   setWidgetSession,
@@ -11,7 +12,11 @@ import { backendConfig } from './backend/config';
 import { fetchWidgetFavourite } from './backend/repository';
 import { useFriends } from './friends';
 import { PARTNER_ID, useWidgetData, YOU_ID } from './store';
-import { buildWidgetSnapshot } from './widget-snapshot';
+import {
+  buildImmediateWidgetSnapshot,
+  buildWidgetSnapshot,
+  type WidgetSnapshot,
+} from './widget-snapshot';
 
 /**
  * Keeps the home-screen widgets in step with the app.
@@ -24,6 +29,7 @@ export function useWidgetSync() {
   const data = useWidgetData();
   const friends = useFriends();
   const lastPayload = useRef<string | undefined>(undefined);
+  const lastSnapshot = useRef<WidgetSnapshot | undefined>(undefined);
 
   // Widget buttons post to one RPC directly, so they need a token. Refreshed
   // on every auth change and cleared on sign-out.
@@ -43,11 +49,12 @@ export function useWidgetSync() {
         url: backendConfig.supabaseUrl,
         anonKey: backendConfig.supabaseKey,
         accessToken,
+        timezone: data.me?.timezone ?? 'UTC',
       });
     } catch {
       // Older native build without this method.
     }
-  }, [accessToken]);
+  }, [accessToken, data.me?.timezone]);
 
   /*
    * In-widget button presses (iOS 17+).
@@ -83,14 +90,22 @@ export function useWidgetSync() {
       .then(async (actions) => {
         if (cancelled || !actions.length) return;
         const { setTaskComplete, sendWidgetNudge } = await import('./backend/repository');
+        const succeeded = [] as typeof actions;
         for (const item of actions) {
           try {
-            if (item.type === 'complete_task') await setTaskComplete(item.id, true);
-            if (item.type === 'nudge') await sendWidgetNudge(item.id);
+            if (item.type === 'complete_task') {
+              await setTaskComplete(item.id, true);
+            } else if (item.type === 'nudge') {
+              await sendWidgetNudge(item.id);
+            } else {
+              continue;
+            }
+            succeeded.push(item);
           } catch {
-            // Replaying is best-effort; the app's own state stays correct.
+            // Leave this action queued so a later launch can retry it.
           }
         }
+        if (!cancelled) await acknowledgeWidgetActions(succeeded);
       })
       .catch(() => {});
     return () => {
@@ -102,40 +117,52 @@ export function useWidgetSync() {
     let cancelled = false;
     if (!data.me || !data.partner) return;
 
+    const input = {
+      me: data.me,
+      partner: data.partner,
+      space: data.space,
+      presence: data.presence ?? {
+        userId: PARTNER_ID,
+        mood: 'calm' as const,
+        updatedAt: new Date().toISOString(),
+      },
+      question: data.question,
+      habits: data.habits,
+      todayLog: data.todayLog,
+      goodies: data.goodies,
+      friendPosts: friends.posts,
+      meId: YOU_ID,
+      partnerId: PARTNER_ID,
+      carouselOffset,
+    };
+    const publish = (snapshot: Awaited<ReturnType<typeof buildWidgetSnapshot>>) => {
+      if (cancelled) return;
+      const payload = JSON.stringify({ ...snapshot, updatedAt: undefined });
+      if (payload === lastPayload.current) return;
+      lastPayload.current = payload;
+      lastSnapshot.current = snapshot;
+      syncWidgetSnapshot(snapshot);
+    };
+
+    // Presence and 2do render immediately. Carousel image caching continues
+    // below and replaces this shell when its local files are ready.
+    const immediate = buildImmediateWidgetSnapshot(input);
+    publish(
+      lastSnapshot.current
+        ? {
+            ...immediate,
+            partnerSlides: lastSnapshot.current.partnerSlides,
+            friendSlides: lastSnapshot.current.friendSlides,
+          }
+        : immediate,
+    );
+
     Promise.resolve()
       // The favourite lives on the server, not in the store: it is written by
       // the *partner*, so nothing local ever changes when they set one.
       .then(() => (userId ? fetchWidgetFavourite(userId).catch(() => null) : null))
-      .then((favourite) =>
-        buildWidgetSnapshot({
-          me: data.me,
-          partner: data.partner,
-          space: data.space,
-          presence: data.presence ?? {
-            userId: PARTNER_ID,
-            mood: 'calm',
-            updatedAt: new Date().toISOString(),
-          },
-          question: data.question,
-          habits: data.habits,
-          todayLog: data.todayLog,
-          goodies: data.goodies,
-          friendPosts: friends.posts,
-          meId: YOU_ID,
-          partnerId: PARTNER_ID,
-          favourite,
-          carouselOffset,
-        }),
-      )
-      .then((snapshot) => {
-        if (cancelled) return;
-        // Writing the snapshot forces every placed widget to redraw, so only
-        // push when something actually changed.
-        const payload = JSON.stringify({ ...snapshot, updatedAt: undefined });
-        if (payload === lastPayload.current) return;
-        lastPayload.current = payload;
-        syncWidgetSnapshot(snapshot);
-      })
+      .then((favourite) => buildWidgetSnapshot({ ...input, favourite }))
+      .then(publish)
       .catch(() => {
         // A widget that keeps its previous content is better than a crash.
       });

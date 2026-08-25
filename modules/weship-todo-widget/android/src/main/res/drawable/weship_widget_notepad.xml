@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ruled paper for note slides.
+
+  Android has no repeating-shape drawable, and a tiled BitmapDrawable would mean
+  shipping a raster asset, so the rules are a fixed ladder of layers. There are
+  more than the tallest supported widget can show; the surplus is clipped.
+
+  No margin rule. A vertical line down a widget this narrow read as a stray
+  divider rather than as paper, and it collided with the source chip. The rules
+  run the full width of the card inside its padding instead.
+
+  `android:height` on a layer-list item (API 23+) pins each rule to one pixel
+  instead of letting the shape stretch to fill its inset box.
+
+  The pitch is stated in dp and the text that sits on it sets its line height in
+  dp to match. That holds at the normal font scale; at a large accessibility
+  font scale the text (sp) grows while the rules (dp) do not, so they drift.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <item>
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_surface" />
+      <corners android:radius="22dp" />
+    </shape>
+  </item>
+
+  <item
+    android:top="44dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="68dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="92dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="116dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="140dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="164dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="188dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="212dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="236dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="260dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="284dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="308dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="332dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+  <item
+    android:top="356dp"
+    android:left="16dp"
+    android:right="16dp"
+    android:height="1dp"
+    android:gravity="top|fill_horizontal">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/weship_widget_line" />
+    </shape>
+  </item>
+</layer-list>

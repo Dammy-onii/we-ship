@@ -12,6 +12,7 @@ import type { FriendPost, FriendPostKind, FriendRequest, PersonSummary } from '@
 
 import { signedUrl } from './repository';
 import { requireSupabase } from './supabase';
+import { friendPostCutoffISO } from '../friend-post-ttl';
 
 type AnyRow = Record<string, any>;
 
@@ -140,14 +141,23 @@ export async function removeFriendByUser(userId: string, otherId: string) {
   fail(error);
 }
 
-/** The board: your friends' posts and your own, newest first. */
+/**
+ * The board: your friends' posts and your own, newest first.
+ *
+ * Filtered to the post lifetime as well as guarded by RLS. The server is the
+ * authority, but the purge runs on a schedule, and asking here means the board
+ * and the Spotlight drop a post the moment it expires rather than whenever the
+ * next purge happens to land.
+ */
 export async function fetchFriendPosts(userId: string): Promise<FriendPost[]> {
   const client = requireSupabase();
+  const cutoff = friendPostCutoffISO();
   const currentSchema = await client
     .from('friend_posts')
     .select(
       'id, author_id, kind, body, storage_path, duration_seconds, width, height, created_at, author:profiles!friend_posts_author_id_fkey(id, display_name, username, avatar_path)',
     )
+    .gte('created_at', cutoff)
     .order('created_at', { ascending: false })
     .limit(120);
   let data = currentSchema.data as AnyRow[] | null;
@@ -160,6 +170,7 @@ export async function fetchFriendPosts(userId: string): Promise<FriendPost[]> {
       .select(
         'id, author_id, kind, body, storage_path, duration_seconds, created_at, author:profiles!friend_posts_author_id_fkey(id, display_name, username, avatar_path)',
       )
+      .gte('created_at', cutoff)
       .order('created_at', { ascending: false })
       .limit(120);
     data = legacySchema.data as AnyRow[] | null;

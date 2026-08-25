@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sky behind the peaks. Clipped to the widget's own corner radius. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <gradient
+    android:angle="270"
+    android:startColor="@color/weship_widget_sky"
+    android:endColor="@color/weship_widget_sky_low" />
+  <corners android:radius="22dp" />
+</shape>

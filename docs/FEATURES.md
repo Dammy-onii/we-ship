@@ -26,26 +26,31 @@ Legend for v1 scope: ✅ in standalone v1 · 🔜 next phase · 🧊 later
 ### Goodies
 - **What:** A same-day inbox and composer for partner-sent photos, videos, voice notes, notes, and reminders.
 - **Why:** Makes affection and practical care feel immediate without turning Weship into a chat app.
-- **v1/live:** ✅ Drawer route, seeded day feed, live note/reminder/voice persistence, device photo/video selection, Drive-primary photo/video originals, private compact previews, microphone recording with a voice-reactive meter, and replay-safe voice playback. Native picker files are read through Expo FileSystem, not web-style URI fetching. The drawer mic opens the composer on tap and begins recording after a long press. — [codex · done-unverified]
+- **v1/live:** ✅ Drawer route, seeded day feed, live note/reminder/voice persistence, single-item device photo/video selection, Drive-primary photo/video originals, private compact previews, microphone recording with a voice-reactive meter, and replay-safe voice playback. Media captions remain visible on Spotlight cards and in the full-screen viewer. A live user must connect Google Drive before choosing or sending partner media. Native picker files are read through Expo FileSystem, not web-style URI fetching. The drawer mic opens the composer on tap and begins recording after a long press. — [codex · done-unverified]
 
 ---
 
 ## 2. Widget
 
 - **What:** Five widgets — Us, Friends, Presence, Quick send, and 2do.
-- **Us / Friends:** A full-bleed slideshow of one shared item at a time — photo, video or note — with the source, position, author and any ★ favourite in a scrim along the bottom. Android draws them with a `StackView`, which can be swiped by hand; arrows step it when there is more than one slide. iOS uses `Link` regions and ‹ › buttons, because WidgetKit has no gesture support inside a single widget.
-- **2do:** The whole shared list, scrollable, with a done/total count. Tapping a circle ticks that task off in place; a task that requires a completion note opens the app instead, since a widget cannot ask for text. Optimistic ticks are held per task id until the app's next snapshot confirms them.
-- **Presence / Quick send:** Their mood and one useful line; and three shortcuts into the composer.
+- **Us / Friends:** A full-bleed slideshow of one shared item at a time — photo, video frame or note — with the source, position, author and any ★ favourite in a scrim along the bottom. Both decks carry **every** eligible item, up to a 40-slide cap that exists only to bound disk caching; Friends is the whole board newest-first, your own posts included, rather than one post per person. Video frames are pulled from the cached file with `MediaMetadataRetriever`, since a video has no separate poster and `BitmapFactory` cannot decode one. Notes are drawn on ruled paper with a margin rule, their line height matched in dp to the rule pitch. Android uses a flat `AdapterViewFlipper`; iOS uses a SwiftUI `ZStack`. Both expose ‹ › controls because neither platform permits a custom horizontal drag gesture in this widget surface. Images are fill-cropped and clipped to the widget outline, so no second card appears behind them. Tapping a slide opens that exact item in the matching Spotlight — Us goes to the shared gallery, Friends to the friend board — rather than the top of the list.
+- **2do:** About four comfortably padded shared tasks are visible at the normal Android size, with a done/total count and a native scrolling list for everything else. The list is styled as a pad: each row carries its own bottom rule so the rules scroll with the content, while the margin rule sits on the fixed list container. The in-app catalogue uses the same header, row hierarchy and spacing as the native layout. Tapping a circle ticks that task off in place; a task that requires a completion note opens the app instead, since a widget cannot ask for text. Android keeps an optimistic tick while its completion is queued, removes the queue item only after replay succeeds, and reconciles the result with the next app snapshot. iOS shows three rows in Small and four in Medium, then opens the full list when tapped because WidgetKit home-screen widgets do not scroll.
+- **Presence:** A compact relationship dashboard with a mood badge, current status panel, streak pill, their time or latest exchange, and the next shared 2do. The status panel hugs its text; an empty spacer below it owns the flexible middle space, so a one-word mood is not stranded in the centre of a large box while the footer still sits at the bottom. Size-based hiding is measured against `OPTION_APPWIDGET_MIN_HEIGHT`, which reports the host's guaranteed *floor* rather than the height actually granted — a two-cell widget reports ~110dp while occupying far more — so the thresholds are set low enough to trip only on a genuinely single-cell widget. When there is no open 2do, daily-question progress fills the second detail slot.
+- **Quick send:** Three distinct, color-coded photo, voice and note tiles with native icons and direct composer links. Width and height are read separately: tile width decides whether a caption and then its hint survive, height decides whether the header does, and the icon and tile box scale with the space available (API 31+) rather than stretching to fill a tall widget. Small iOS uses one larger camera action because that family only supports one reliable app-opening region.
 - **Platforms:** ✅ iOS TypeScript/SwiftUI widgets through `expo-widgets`; ✅ Android `AppWidgetProvider`s plus two `RemoteViewsService`s through the local Expo module. Both require a custom development/release build.
 - **Appearance:** Locked to the light palette on both platforms, copied by hand from `Palette.light` into `widgets/shared.ts` and `res/values/colors.xml`.
-- **Picker previews:** Every provider declares a `previewLayout`. The two collection-backed widgets point at static stand-ins, because the system picker does not bind a `RemoteViewsService` and previewing the real layout showed an empty card.
+- **Empty states:** With nothing shared, the adapter substitutes **two placeholder slides** — a landscape on one, a labelled example note on the other — so an empty carousel is still a carousel, the arrows still work, and the widget demonstrates both kinds of thing it carries. The `setEmptyView` layout is therefore never normally seen; it survives only as the pre-bind fallback. The landscape is a vector, so it costs nothing across the Binder and stays sharp; `centerCrop` keeps the sun round at any widget aspect.
+
+- **Picker previews:** Every provider declares one matching `previewLayout`, and each preview layout is written out in full rather than `<include>`-ing the runtime layout, because an `<include>` does not survive the picker's cross-process resource lookup and resolved to the wrong provider's art. No provider declares a `previewImage`. Runtime-generated previews are deliberately not persisted: some launchers cache their resource IDs across an app update and then show one provider's layout under another provider's name. The code-based visual reference is [widget-gallery.png](./images/widget-gallery.png).
 
 ### In-app alert sound
 - **What:** A toast that arrives while the app is open plays a sound, because the OS only sounds notifications delivered to a backgrounded app.
-- **Android:** Asks `RingtoneManager` for the user's own notification tone, so it matches every other notification on the phone and obeys notification volume, silent mode and Do Not Disturb.
+- **Android:** Plays the sound selected for Weship's `weship-updates-v4` notification channel (falling back to the phone default before Android 8), so in-app and system alerts match and obey notification volume, silent mode and Do Not Disturb.
 - **iOS:** The system tone for an incoming message. iOS gives an app no way to read the user's chosen notification sound outside a delivered notification, so this is the closest real system sound.
 - **No bundled audio.** Both paths play a sound the phone already makes. Nothing is shipped with the app; an in-app alert should never introduce a noise the device does not otherwise produce.
 - **Where neither exists** — web, Expo Go — the toast is silent.
+- **Diagnostics:** Notification settings can play the in-app tone and schedule a local system notification. Before scheduling on Android, the app now reads the real installed `weship-updates-v4` channel and reports whether the user or OS has muted it or lowered its importance.
+- **Android sound choice:** Notification settings opens Android's own Weship channel screen, where the user can choose any notification sound installed on that phone. Android owns this choice after channel creation; Weship does not replace it silently.
 
 ---
 
@@ -77,7 +82,7 @@ Legend for v1 scope: ✅ in standalone v1 · 🔜 next phase · 🧊 later
 
 - **What:** Keep meaningful relationship actions together—intentional check-ins, sharing a daily highlight, planning quality time, thoughtful gestures, saving favorite moments, and future custom tasks. Both partners see each other's completion state.
 - **Why:** Lightweight shared accountability helps couples coordinate without turning the app into a project manager.
-- **Features:** full-width task rows, an explicit completion checkbox, per-person status, shared progress, add/delete controls, daily/weekly/monthly routines, and a per-task completion-note requirement. The next three tasks can also be checked directly from Home; See All opens the complete list.
+- **Features:** full-width task rows, an explicit completion checkbox, per-person status, shared progress, add/delete controls, daily/weekly/monthly routines, and a per-task completion-note requirement. A permanent **Missed periods** section records unfinished closed intervals with exact daily dates, weekly date ranges, or month/year labels; it shows an explicit empty state when nothing has been missed. The next three tasks can also be checked directly from Home; See All opens the complete list.
 - **v1/live:** ✅ Seeded demo fallback plus live Supabase create/delete/completion, routine periods, partner state, Realtime sync, Home completion, and native widget promotion.
 
 ---
@@ -96,8 +101,8 @@ Legend for v1 scope: ✅ in standalone v1 · 🔜 next phase · 🧊 later
 
 - **What:** Add friends, see light status/mood, share select moments outside the couple Space.
 - **Why:** Social breadth without compromising the private couple core.
-- **Rule:** Never mixed into the couple Space; lives behind the avatar, not a main tab.
-- **v1:** 🧊 Stubbed/hidden in standalone v1 (auth/pairing skipped). Designed in [DATA_MODEL.md](./DATA_MODEL.md) for later.
+- **Rule:** Never mixed into the couple Space; friend posts use their own private Supabase media path and never depend on the pair-scoped Google Drive pipeline.
+- **v1:** ✅ Friend discovery/requests, profiles, board posts, reactions, comments, and photo/video/voice sharing are implemented. Each friend post accepts exactly one photo or one video; friend photo posts keep compact copies in private storage, while friend video and voice posts keep their media there. — [codex · done-unverified]
 
 ---
 
@@ -112,3 +117,6 @@ Legend for v1 scope: ✅ in standalone v1 · 🔜 next phase · 🧊 later
 - **Ownership:** Drive holds the only new original binary on the uploader’s quota. Supabase holds pair metadata, the Drive file/owner IDs, upload state, and a private JPEG preview capped at 2 MB.
 - **Delivery:** The uploader and partner see preview grids. Opening an item streams the original through a pair-authorized Edge Function with range support for video; neither device receives a Google token.
 - **Current:** ✅ client preview generation, direct resumable original upload, atomic finalization, safe cleanup, Goodies/Memories UI, original viewer, and uploader-only deletion from Drive plus Weship are implemented, with the backend deployed. Two-device photo/video testing remains. — [codex · done-unverified]
+- **Friend-post lifetime:** A friend-board post lives **two days**, then disappears from the board, the Spotlight, the widget and the database alike. The read policy on `friend_posts` hides a row the moment it passes the cutoff, so expiry is a rule rather than a cleanup job; the scheduled `dispatch-reminders` function then deletes the rows and their storage objects, and the device prunes its cached copies on the same clock. The lifetime is defined once in [lib/friend-post-ttl.ts](../lib/friend-post-ttl.ts) and mirrored by `public.friend_post_ttl()` and the dispatcher — all three change together.
+
+- **Connection requirement:** In a live account, photo/video composers explain and enforce that the uploader must connect Google Drive before sharing. Notes, reminders, voice notes, and friend-board posts do not use this Drive path.
