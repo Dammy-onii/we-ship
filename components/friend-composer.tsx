@@ -23,6 +23,7 @@ import { useNativePickerAction } from '@/hooks/use-native-picker';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useFriends } from '@/lib/friends';
+import { FRIEND_POST_TTL_DAYS } from '@/lib/friend-post-ttl';
 import type { FriendPostKind } from '@/lib/types';
 
 const KINDS: {
@@ -156,7 +157,14 @@ export function FriendComposer({
             <View style={[styles.grabber, { backgroundColor: theme.line }]} />
 
             <View style={styles.head}>
-              <Text variant="title">Post to friends</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text variant="title">Post to friends</Text>
+                {/* Said before they post, not only after. Someone choosing what
+                    to share deserves to know how long it lasts. */}
+                <Text variant="caption" color="textFaint">
+                  Clears itself after {FRIEND_POST_TTL_DAYS} days.
+                </Text>
+              </View>
               <Pressable onPress={close} hitSlop={12} accessibilityLabel="Close">
                 <Ionicons name="close" size={22} color={theme.textSoft} />
               </Pressable>

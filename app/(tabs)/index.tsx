@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Flame, Sprig } from '@/components/art/botanicals';
 import { Avatar } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DataState } from '@/components/ui/data-state';
 import { Photo } from '@/components/ui/photo';
@@ -18,6 +17,7 @@ import { MoodPicker } from '@/components/mood-picker';
 import { TaskCompletionDialog } from '@/components/task-completion-dialog';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Text } from '@/components/ui/text';
+import { UnpairedNotice } from '@/components/unpaired-notice';
 import { Gradients, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { moodOf, type MoodKey } from '@/lib/moods';
@@ -288,7 +288,12 @@ function ContentSheet() {
     <View style={[styles.sheet, { backgroundColor: theme.bg }]}>
       <View style={[styles.grabber, { backgroundColor: theme.lineStrong }]} />
       <View style={styles.body}>
-        {paired ? null : <PairPrompt />}
+        {paired ? null : (
+          <UnpairedNotice
+            title="Pair to unlock your space"
+            detail="Your streak, shared 2dos, the daily question and Goodies all need two people. Friends, your profile and notifications work right now."
+          />
+        )}
         <SetupChecklist />
         {paired ? (
           <>
@@ -298,31 +303,6 @@ function ContentSheet() {
           </>
         ) : null}
       </View>
-    </View>
-  );
-}
-
-/** What Home says while there is nobody to share it with. */
-function PairPrompt() {
-  const theme = useTheme();
-  const router = useRouter();
-
-  return (
-    <View style={[styles.pairPrompt, { backgroundColor: theme.primarySoft }]}>
-      <View style={styles.pairPromptHead}>
-        <Ionicons name="people-outline" size={20} color={theme.primaryDeep} />
-        <Text variant="title" style={{ flex: 1 }}>Pair to unlock your space</Text>
-      </View>
-      <Text variant="caption" color="textSoft">
-        Your streak, shared 2dos, the daily question and Goodies all need two
-        people. Friends, your profile and notifications work right now.
-      </Text>
-      <Button
-        full
-        label="Pair with your partner"
-        icon={<Ionicons name="heart-outline" size={17} color={theme.onPrimary} />}
-        onPress={() => router.push('/pairing')}
-      />
     </View>
   );
 }
@@ -499,8 +479,6 @@ const styles = StyleSheet.create({
   grabber: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', opacity: 0.7 },
   body: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md },
 
-  pairPrompt: { borderRadius: Radius.card, padding: Spacing.base, gap: Spacing.sm },
-  pairPromptHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   simpleStreak: {
     flexDirection: 'row',
     alignItems: 'center',

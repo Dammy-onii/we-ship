@@ -22,11 +22,14 @@ type MenuItem = {
 };
 
 const MENU: MenuItem[] = [
+  { label: 'Profile', href: '/profile', icon: 'person-circle-outline' },
+  { label: 'Goodies', href: '/goodies', icon: 'gift-outline' },
   { label: 'Play', href: '/play', icon: 'game-controller-outline' },
   { label: 'Friends', href: '/friends', icon: 'people-outline' },
   { label: '2do', href: '/todo', icon: 'checkbox-outline' },
   { label: 'Widgets', href: '/widgets', icon: 'grid-outline' },
   { label: 'Memories', href: '/memories', icon: 'images-outline' },
+  { label: 'Settings', href: '/modal', icon: 'settings-outline' },
 ];
 
 export function AppDrawerContent(props: DrawerContentComponentProps) {
@@ -40,7 +43,11 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
 
   const navigate = (href: string) => {
     props.navigation.closeDrawer();
-    if (pathname !== href) router.replace(href as Href);
+    // `navigate`, not `replace`: these are sibling Drawer screens, and
+    // `replace` swaps the top of a stack rather than switching which Drawer
+    // screen is shown. The same mistake on the pairing screen made "skip"
+    // appear to land in Profile.
+    if (pathname !== href) router.navigate(href as Href);
   };
 
   return (
@@ -49,7 +56,7 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
       style={{ backgroundColor: theme.bg }}
       contentContainerStyle={styles.content}>
       <Pressable
-        onPress={() => navigate('/modal')}
+        onPress={() => navigate('/profile')}
         accessibilityLabel="Open your profile"
         style={({ pressed }) => [styles.profile, pressed && { opacity: 0.8 }]}>
         <Avatar name={me.displayName} seed={me.photoSeed} uri={me.photoUri} ring="you" size={54} />
@@ -87,33 +94,6 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
           variant="bodyStrong"
           style={{ flex: 1, color: pathname === '/' ? theme.primaryDeep : theme.text }}>
           Home
-        </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={() => navigate('/goodies')}
-        accessibilityRole="button"
-        accessibilityState={{ selected: pathname === '/goodies' }}
-        style={({ pressed }) => [
-          styles.item,
-          { backgroundColor: pathname === '/goodies' ? theme.primarySoft : 'transparent' },
-          pressed && { backgroundColor: theme.surfaceAlt },
-        ]}>
-        <View
-          style={[
-            styles.itemIcon,
-            { backgroundColor: pathname === '/goodies' ? theme.surface : theme.surfaceAlt },
-          ]}>
-          <Ionicons
-            name="gift-outline"
-            size={19}
-            color={pathname === '/goodies' ? theme.primaryDeep : theme.textSoft}
-          />
-        </View>
-        <Text
-          variant="bodyStrong"
-          style={{ flex: 1, color: pathname === '/goodies' ? theme.primaryDeep : theme.text }}>
-          Goodies
         </Text>
       </Pressable>
 

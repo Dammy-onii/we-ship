@@ -77,8 +77,20 @@ export async function prepareMediaPreview(media: LocalMedia): Promise<PreparedPr
  * that and written into the cache, and the copy is uploaded instead.
  */
 async function materializeLocalFile(uri: string): Promise<File> {
-  const direct = new File(uri);
-  if (direct.exists) return direct;
+  // Only a real filesystem path can back a `File` directly. A `content://` URI
+  // — what Android's photo picker now returns — is not a scheme the File class
+  // accepts, and constructing one from it can throw rather than simply report
+  // `exists === false`, which is what produced "the selected file could not be
+  // read" before the fetch fallback below ever ran. So the direct path is only
+  // attempted for `file://`, and even then defensively.
+  if (uri.startsWith('file://') || uri.startsWith('/')) {
+    try {
+      const direct = new File(uri);
+      if (direct.exists) return direct;
+    } catch {
+      // Fall through to fetching the bytes.
+    }
+  }
 
   const response = await fetch(uri);
   if (!response.ok) throw new Error('The selected file could not be read. Please choose it again.');

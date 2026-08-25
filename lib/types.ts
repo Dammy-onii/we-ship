@@ -18,6 +18,18 @@ export type User = {
   username?: string;
   /** Optional; one of the keys in `lib/gender.ts`. */
   gender?: string;
+  /** Public one-liner, editable by the owner, shown to anyone who can find them. */
+  bio?: string;
+};
+
+/** The five reactions a friend post can carry. Ordered as they appear in the UI. */
+export type ReactionKind = 'love' | 'laugh' | 'sad' | 'angry' | 'cry' | 'dislike';
+
+/** Reaction counts on a single post, plus which one you gave, if any. */
+export type PostReactions = {
+  counts: Record<ReactionKind, number>;
+  /** Your own reaction, so the UI can show it as selected and toggle it off. */
+  mine?: ReactionKind;
 };
 
 export type SpaceMode = 'together' | 'distance';
@@ -176,6 +188,8 @@ export type FriendPost = {
   height?: number;
   createdAt: ISODateTime;
   mine: boolean;
+  /** Live reaction tallies for this post, loaded with the board. */
+  reactions?: PostReactions;
 };
 
 /** Where a composed item is sent. At least one must be selected. */

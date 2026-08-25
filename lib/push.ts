@@ -151,16 +151,63 @@ export async function disablePushNotifications(userId: string) {
 
 /** Reads the persisted row for this physical device without prompting. */
 export async function pushNotificationsEnabled(userId: string): Promise<boolean> {
+  const Notifications = notifications();
+  if (!Notifications || !Device.isDevice) return false;
+
   const token = await currentDeviceToken(false);
-  if (!token) return false;
-  const { data, error } = await requireSupabase()
+  if (token) {
+    const { data, error } = await requireSupabase()
+      .from('push_tokens')
+      .select('enabled')
+      .eq('user_id', userId)
+      .eq('expo_push_token', token)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data?.enabled === true) return true;
+  }
+
+  /*
+   * Self-heal a rotated token.
+   *
+   * Expo push tokens change on reinstalls, some updates, and Expo's own
+   * rotation. When that happens the enabled row written at "Enable" time is
+   * keyed to the *old* token, so a strict lookup by the current token reports
+   * "off" and the checklist nags forever — the exact false alarm users hit
+   * after turning notifications on.
+   *
+   * The per-device truth is the OS permission. If it is granted and the user
+   * has ever enabled a device (any enabled row exists), the intent is clearly
+   * "on", so the current token is re-registered — which both clears the nag and
+   * makes delivery actually work again on the new token.
+   */
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== 'granted' || !token) return false;
+
+  const { data: everEnabled, error: lookupError } = await requireSupabase()
     .from('push_tokens')
-    .select('enabled')
+    .select('expo_push_token')
     .eq('user_id', userId)
-    .eq('expo_push_token', token)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data?.enabled === true;
+    .eq('enabled', true)
+    .limit(1);
+  if (lookupError) throw new Error(lookupError.message);
+  if (!everEnabled?.length) return false;
+
+  const { error: healError } = await requireSupabase().from('push_tokens').upsert(
+    {
+      user_id: userId,
+      expo_push_token: token,
+      platform: Platform.OS,
+      device_name: Device.deviceName ?? null,
+      app_version: Constants.expoConfig?.version ?? null,
+      enabled: true,
+      last_seen_at: new Date().toISOString(),
+    },
+    { onConflict: 'expo_push_token' },
+  );
+  // A failed re-register is not worth surfacing here — the caller only wants to
+  // know the intended state, and the next enable attempt will write it cleanly.
+  if (healError) return true;
+  return true;
 }
 
 /** Schedules a visible, audible local notification for device diagnostics. */

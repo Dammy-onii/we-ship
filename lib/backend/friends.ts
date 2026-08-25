@@ -13,6 +13,7 @@ import type { FriendPost, FriendPostKind, FriendRequest, PersonSummary } from '@
 import { signedUrl } from './repository';
 import { requireSupabase } from './supabase';
 import { friendPostCutoffISO } from '../friend-post-ttl';
+import type { PostReactions, ReactionKind } from '../types';
 
 type AnyRow = Record<string, any>;
 
@@ -179,6 +180,7 @@ export async function fetchFriendPosts(userId: string): Promise<FriendPost[]> {
   fail(error);
 
   const rows = (data ?? []) as AnyRow[];
+  const reactions = await fetchReactionsFor(rows.map((row) => row.id as string), userId);
   return Promise.all(
     rows.map(async (row) => ({
       id: row.id,
@@ -191,8 +193,67 @@ export async function fetchFriendPosts(userId: string): Promise<FriendPost[]> {
       createdAt: row.created_at,
       mine: row.author_id === userId,
       author: await toPerson(row.author ?? { id: row.author_id }, 'friends'),
+      reactions: reactions.get(row.id) ?? emptyReactions(),
     })),
   );
+}
+
+const REACTION_KINDS: ReactionKind[] = ['love', 'laugh', 'sad', 'angry', 'cry', 'dislike'];
+
+function emptyReactions(): PostReactions {
+  return { counts: { love: 0, laugh: 0, sad: 0, angry: 0, cry: 0, dislike: 0 } };
+}
+
+/**
+ * Every reaction on a set of posts, tallied per post.
+ *
+ * One query for the whole board rather than one per card. Reactions are only
+ * readable when the post is (the RLS policy mirrors the post's), so a row coming
+ * back is itself proof the caller may count it — no extra check needed here.
+ */
+async function fetchReactionsFor(
+  postIds: string[],
+  userId: string,
+): Promise<Map<string, PostReactions>> {
+  const tally = new Map<string, PostReactions>();
+  if (!postIds.length) return tally;
+  const { data, error } = await requireSupabase()
+    .from('post_reactions')
+    .select('post_id, user_id, kind')
+    .in('post_id', postIds);
+  // A deployment that has not run the reactions migration yet should still show
+  // the board, just without counts, rather than failing the whole load.
+  if (error) return tally;
+  for (const raw of (data ?? []) as AnyRow[]) {
+    const entry = tally.get(raw.post_id) ?? emptyReactions();
+    const kind = raw.kind as ReactionKind;
+    if (REACTION_KINDS.includes(kind)) entry.counts[kind] += 1;
+    if (raw.user_id === userId) entry.mine = kind;
+    tally.set(raw.post_id, entry);
+  }
+  return tally;
+}
+
+/** Set or change your reaction to a post. Clears it when kind is null. */
+export async function reactToPost(postId: string, kind: ReactionKind | null): Promise<void> {
+  const client = requireSupabase();
+  const { error } =
+    kind === null
+      ? await client.rpc('clear_post_reaction', { p_post_id: postId })
+      : await client.rpc('set_post_reaction', { p_post_id: postId, p_kind: kind });
+  fail(error);
+}
+
+/** Your own lifetime reaction totals, across every post you have made. */
+export async function fetchMyReactionTotals(): Promise<Record<ReactionKind, number>> {
+  const totals: Record<ReactionKind, number> = { love: 0, laugh: 0, sad: 0, angry: 0, cry: 0, dislike: 0 };
+  const { data, error } = await requireSupabase().rpc('my_reaction_totals');
+  if (error) return totals;
+  for (const raw of (data ?? []) as AnyRow[]) {
+    const kind = raw.kind as ReactionKind;
+    if (REACTION_KINDS.includes(kind)) totals[kind] = Number(raw.total) || 0;
+  }
+  return totals;
 }
 
 export async function addFriendPost(
@@ -321,6 +382,8 @@ export async function setUsername(username: string): Promise<string> {
 /** A friend's own page: who they are, and how the two of you are connected. */
 export type FriendProfile = PersonSummary & {
   gender?: string;
+  /** Their public one-liner, shown on the profile page. */
+  bio?: string;
   /** Whether they share a space with a partner. Never who that partner is. */
   paired: boolean;
   friendsSince: string;
@@ -334,6 +397,7 @@ export async function fetchFriendProfile(personId: string): Promise<FriendProfil
   return {
     ...(await toPerson(row, 'friends')),
     gender: row.gender ?? undefined,
+    bio: row.bio ?? undefined,
     paired: row.paired === true,
     friendsSince: row.friends_since,
   };

@@ -109,6 +109,7 @@ Configured builds show the email/password or magic-link Auth gate, then direct u
 | Shared Space pairing | `pairing` | ✅ live |
 | Google/Drive connections | `connections` | ✅ configured; connected-account validation pending |
 | Calendar import/create | `calendar` | ✅ configured; connected-account validation pending |
+| Unpaired state | Home, Us, Us Spotlight | ✅ code; skip verified in source, not on device |
 | Notification settings | `notification-settings` | ✅ code; device credentials pending |
 | Friends | `friends` | ✅ live graph, board, username search, and requests. People are added by username; there is no contact matching |
 | Friend profile | `friend/[id]` | ✅ code; device validation pending — who they are, whether they are paired, their gender, and their posts |

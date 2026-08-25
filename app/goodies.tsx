@@ -196,6 +196,9 @@ function GoodieComposer({
         allowsMultipleSelection: false,
         selectionLimit: 1,
         quality: 0.9,
+        // Copy the pick into app cache so we get a stable file:// URI rather
+        // than a content:// one that can expire or resist direct reads.
+        legacy: true,
       }),
     );
     if (!result.canceled) setMediaAsset(result.assets[0]);

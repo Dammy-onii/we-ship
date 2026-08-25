@@ -18,7 +18,7 @@ import {
   type PersonalNotification,
 } from './contacts';
 import { pruneExpiredFriendMedia } from './media-cache';
-import type { FriendPost, FriendPostKind, FriendRequest, PersonSummary } from './types';
+import type { FriendPost, FriendPostKind, FriendRequest, PersonSummary, ReactionKind } from './types';
 import { userFacingError } from './user-facing-error';
 
 type FriendsCtx = {
@@ -52,6 +52,8 @@ type FriendsCtx = {
     height?: number;
   }) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
+  /** Set or clear your reaction to a post; optimistic, reconciled by refresh. */
+  react: (postId: string, kind: ReactionKind | null) => Promise<void>;
   /** People from the phone's address book who already have an account. */
   notifications: PersonalNotification[];
   unreadNotifications: number;
@@ -175,6 +177,38 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     [mutate],
   );
 
+  /**
+   * React optimistically, then reconcile.
+   *
+   * The tap has to feel instant, so the count moves before the server answers.
+   * Only this post's tally is touched — the previous reaction is decremented,
+   * the new one incremented, and `mine` moved — matching exactly what the RPC
+   * does server-side. A failed call falls back to a silent refresh, which
+   * restores the true counts.
+   */
+  const react = useCallback<FriendsCtx['react']>(
+    async (postId, kind) => {
+      setPosts((current) =>
+        current.map((entry) => {
+          if (entry.id !== postId) return entry;
+          const base = entry.reactions ?? {
+            counts: { love: 0, laugh: 0, sad: 0, angry: 0, cry: 0, dislike: 0 },
+          };
+          const counts = { ...base.counts };
+          if (base.mine) counts[base.mine] = Math.max(counts[base.mine] - 1, 0);
+          if (kind) counts[kind] += 1;
+          return { ...entry, reactions: { counts, mine: kind ?? undefined } };
+        }),
+      );
+      try {
+        await friendsBackend.reactToPost(postId, kind);
+      } catch {
+        await refresh({ silent: true });
+      }
+    },
+    [refresh],
+  );
+
   /*
    * Stable on purpose — no `notifications` dependency.
    *
@@ -228,6 +262,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     unfriend,
     post,
     deletePost,
+    react,
     notifications,
     unreadNotifications,
     markNotificationsRead,
@@ -250,6 +285,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     unfriend,
     post,
     deletePost,
+    react,
     notifications,
     unreadNotifications,
     markNotificationsRead,

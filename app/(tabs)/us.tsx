@@ -10,9 +10,10 @@ import { Photo } from '@/components/ui/photo';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Text } from '@/components/ui/text';
+import { UnpairedNotice } from '@/components/unpaired-notice';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useLog, useMemories, useMoments, useNotes, useSpace, useStreak, useUser, YOU_ID } from '@/lib/store';
+import { useLog, useMemories, useMoments, useNotes, useSpace, useStreak, useUser, YOU_ID, useBackendStatus} from '@/lib/store';
 import { dayKeyIn, relativeDay } from '@/lib/time';
 
 export default function UsScreen() {
@@ -23,6 +24,9 @@ export default function UsScreen() {
   const streak = useStreak();
   const { habits, today } = useLog();
   const space = useSpace();
+  const sync = useBackendStatus();
+  // Demo mode has a partner by construction; only a live account can be alone.
+  const paired = sync.mode !== 'live' || sync.paired;
   const { memories } = useMemories();
   const completed = habits.filter((task) => today.habits[task.id]?.[YOU_ID]).length;
 
@@ -42,8 +46,17 @@ export default function UsScreen() {
     <Screen gradient>
       {/* The pair named this space when they created it; nothing showed it back
           to them afterwards. */}
-      <AppHeader title={space.name?.trim() || 'Us'} subtitle="Your shared space" />
+      <AppHeader
+        title={space.name?.trim() || 'Us'}
+        subtitle={paired ? 'Your shared space' : 'Yours for now'}
+      />
       <View style={styles.body}>
+        {paired ? null : (
+          <UnpairedNotice
+            title="No one here but you"
+            detail="Streaks, the daily question, shared 2dos and Goodies all need a second person. Everything else on this page works right now."
+          />
+        )}
         <SectionHeader
           overline="Moments"
           title="Recently shared"

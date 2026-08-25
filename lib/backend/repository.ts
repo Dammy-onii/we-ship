@@ -101,6 +101,7 @@ export async function fetchOwnProfile(userId: string): Promise<User> {
     photoUri: row.avatar_path ? await signedUrl('avatars', row.avatar_path) : undefined,
     username: row.username ?? undefined,
     gender: row.gender ?? undefined,
+    bio: row.bio ?? undefined,
   };
 }
 
@@ -927,14 +928,18 @@ export async function deleteOwnAccount() {
 
 export async function updateProfile(
   userId: string,
-  input: { displayName: string; timezone: string; gender?: string | null },
+  input: { displayName?: string; timezone?: string; gender?: string | null; bio?: string | null },
 ) {
-  const { error } = await requireSupabase().from('profiles').update({
-    display_name: input.displayName.trim(),
-    timezone: input.timezone,
-    // `undefined` leaves it alone; `null` clears it.
-    ...(input.gender !== undefined ? { gender: input.gender } : {}),
-  }).eq('id', userId);
+  // Only the fields actually passed are written, so a bio-only save from the
+  // profile page does not have to restate the name and timezone.
+  const patch: Record<string, unknown> = {};
+  if (input.displayName !== undefined) patch.display_name = input.displayName.trim();
+  if (input.timezone !== undefined) patch.timezone = input.timezone;
+  // `undefined` leaves it alone; `null` clears it.
+  if (input.gender !== undefined) patch.gender = input.gender;
+  if (input.bio !== undefined) patch.bio = input.bio === null ? null : input.bio.trim() || null;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await requireSupabase().from('profiles').update(patch).eq('id', userId);
   throwError(error);
 }
 

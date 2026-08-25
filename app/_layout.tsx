@@ -124,14 +124,18 @@ export default function RootLayout() {
                 <SyncErrorBanner />
                 <Drawer
               /*
-               * Back must return to the PREVIOUS screen, not the first one.
-               * The drawer router inherits TabRouter, whose default
-               * `backBehavior: 'firstRoute'` builds history as
-               * [routes[0], current] — so Android back always jumped to
-               * `(tabs)` (Home) regardless of where the user came from.
-               * 'history' records actual visit order instead.
+               * Back from any drawer section returns to Home, then exits —
+               * the standard, predictable drawer behaviour.
+               *
+               * 'history' was tried first, to return to the previously visited
+               * section instead. It made the back button retrace every section
+               * the user had opened, so repeatedly switching sections left a
+               * long trail that back then walked through one by one — it read as
+               * the button "going around the same pages". Detail screens pushed
+               * on top (a friend's profile, Account) still pop to their own
+               * parent through `HeaderBackButton`, which is separate from this.
                */
-              backBehavior="history"
+              backBehavior="initialRoute"
               drawerContent={(props) => <AppDrawerContent {...props} />}
               /*
                * Wraps every screen rather than every screen adding the control
@@ -196,16 +200,24 @@ export default function RootLayout() {
               />
               <Drawer.Screen
                 name="modal"
-                options={{ headerShown: true, title: 'Profile', drawerItemStyle: { display: 'none' } }}
+                options={{ headerShown: true, title: 'Settings', drawerItemStyle: { display: 'none' } }}
               />
               <Drawer.Screen name="account" options={{ headerShown: true, title: 'Account', drawerItemStyle: { display: 'none' } }} />
+              {/*
+                No hardcoded destination. This screen is reached two ways — from
+                Profile by someone managing an existing space, and by a new
+                account that has not paired yet. Sending both to Profile meant a
+                first-time user pressing back landed in settings instead of Home.
+                With no destination the button goes back where it came from, and
+                falls through to Home when there is nowhere to go back to.
+              */}
               <Drawer.Screen
                 name="pairing"
                 options={{
                   headerShown: true,
                   title: 'Shared space',
                   drawerItemStyle: { display: 'none' },
-                  headerLeft: () => <HeaderBackButton destination="/modal" />,
+                  headerLeft: () => <HeaderBackButton />,
                 }}
               />
               <Drawer.Screen name="connections" options={{ headerShown: true, title: 'Connections', drawerItemStyle: { display: 'none' } }} />
@@ -215,6 +227,10 @@ export default function RootLayout() {
               <Drawer.Screen name="calendar" options={{ headerShown: true, title: 'Calendar', drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen name="media" options={{ headerShown: true, title: 'Original', drawerItemStyle: { display: 'none' } }} />
               <Drawer.Screen name="friends" options={{ headerShown: true, title: 'Friends', drawerItemStyle: { display: 'none' } }} />
+              <Drawer.Screen
+                name="profile"
+                options={{ headerShown: true, title: 'Profile', drawerItemStyle: { display: 'none' } }}
+              />
               <Drawer.Screen
                 name="friend/[id]"
                 options={{

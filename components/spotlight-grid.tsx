@@ -205,6 +205,40 @@ function CardShell({
   );
 }
 
+/** The emoji for each reaction kind, in display order. */
+const REACTION_EMOJI: Record<string, string> = {
+  love: '❤️', laugh: '😂', sad: '😢', angry: '😠', cry: '😭', dislike: '👎',
+};
+
+/**
+ * A small badge showing which reactions a post drew, and how many in total.
+ *
+ * On the card, before it is opened — so the board reads at a glance. Shows up to
+ * three distinct emoji that actually have a count, then the sum. Absent entirely
+ * when nothing has reacted, so an unreacted board stays clean.
+ */
+function ReactionSummary({ reactions, onPhoto }: { reactions?: SpotlightItem['reactions']; onPhoto?: boolean }) {
+  const theme = useTheme();
+  if (!reactions) return null;
+  const present = (['love', 'laugh', 'sad', 'angry', 'cry', 'dislike'] as const).filter(
+    (kind) => reactions.counts[kind] > 0,
+  );
+  const total = present.reduce((sum, kind) => sum + reactions.counts[kind], 0);
+  if (total === 0) return null;
+  return (
+    <View
+      style={[
+        styles.reactionBadge,
+        { backgroundColor: onPhoto ? 'rgba(24,20,16,0.55)' : theme.surfaceAlt },
+      ]}>
+      <Text style={styles.reactionBadgeEmoji}>{present.slice(0, 3).map((k) => REACTION_EMOJI[k]).join('')}</Text>
+      <Text variant="micro" style={{ color: onPhoto ? '#FFFCF7' : theme.textSoft }}>
+        {total}
+      </Text>
+    </View>
+  );
+}
+
 /** Photo/video: image fills the card, byline sits over a scrim. */
 function MediaCard({ item, height, onPress, onLongPress }: CardProps) {
   const theme = useTheme();
@@ -242,6 +276,9 @@ function MediaCard({ item, height, onPress, onLongPress }: CardProps) {
           <Ionicons name="play" size={14} color="#1E1D19" />
         </View>
       ) : null}
+      <View style={styles.reactionCorner}>
+        <ReactionSummary reactions={item.reactions} onPhoto />
+      </View>
       <View style={styles.mediaByline}>
         {item.text ? (
           <Text variant="captionStrong" style={styles.mediaCaption} numberOfLines={2}>
@@ -323,9 +360,12 @@ function NoteCard({ item, height, onPress, onLongPress }: CardProps) {
       <Text variant="serif" style={{ fontSize: 15, lineHeight: 23 }} numberOfLines={7}>
         {item.text ?? '—'}
       </Text>
-      <Text variant="micro" color="textFaint" numberOfLines={1}>
-        {byline(item)}
-      </Text>
+      <View style={styles.cardFootRow}>
+        <Text variant="micro" color="textFaint" numberOfLines={1} style={{ flex: 1 }}>
+          {byline(item)}
+        </Text>
+        <ReactionSummary reactions={item.reactions} />
+      </View>
     </CardShell>
   );
 }
@@ -390,6 +430,13 @@ const styles = StyleSheet.create({
   },
   mediaCaption: { color: '#FFFCF7' },
   mediaAuthor: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reactionCorner: { position: 'absolute', top: 8, left: 8 },
+  cardFootRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reactionBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999,
+  },
+  reactionBadgeEmoji: { fontSize: 11 },
   playBadge: {
     position: 'absolute',
     top: Spacing.sm,

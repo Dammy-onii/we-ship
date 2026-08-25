@@ -21,6 +21,8 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
+import { ReactionBar } from '@/components/reaction-bar';
+import type { ReactionKind } from '@/lib/types';
 import { VoicePlayer } from '@/components/voice-player';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
@@ -36,6 +38,10 @@ type Props = {
   items: SpotlightItem[];
   startIndex: number;
   onClose: () => void;
+  /** Opens the author's profile when their avatar is tapped. Friend items only. */
+  onOpenProfile?: (authorId: string) => void;
+  /** React to a friend post from the viewer. Absent on the Goodies gallery. */
+  onReact?: (postId: string, kind: ReactionKind | null) => void;
 };
 
 /**
@@ -45,7 +51,7 @@ type Props = {
  * page or lose the Spotlight scroll position, and dismissing is a swipe rather
  * than a back navigation.
  */
-export function MediaViewer({ items, startIndex, onClose }: Props) {
+export function MediaViewer({ items, startIndex, onClose, onOpenProfile, onReact }: Props) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
@@ -131,7 +137,21 @@ export function MediaViewer({ items, startIndex, onClose }: Props) {
 
           {current ? (
             <View style={[styles.caption, { paddingBottom: insets.bottom + Spacing.lg }]}>
-              <Byline item={current} />
+              <Byline item={current} onOpenProfile={onOpenProfile} onClose={onClose} />
+              {onReact && current.source === 'friend' ? (
+                <View style={styles.reactions}>
+                  {/*
+                    On your own post the bar is read-only — you see who reacted
+                    with what, but tapping does nothing, since you cannot react
+                    to yourself. On a friend's post it is interactive.
+                  */}
+                  <ReactionBar
+                    reactions={current.reactions}
+                    onReact={(kind) => onReact(current.id, kind)}
+                    disabled={current.mine}
+                  />
+                </View>
+              ) : null}
             </View>
           ) : null}
         </Animated.View>
@@ -141,16 +161,39 @@ export function MediaViewer({ items, startIndex, onClose }: Props) {
   );
 }
 
-function Byline({ item }: { item: SpotlightItem }) {
+function Byline({
+  item,
+  onOpenProfile,
+  onClose,
+}: {
+  item: SpotlightItem;
+  onOpenProfile?: (authorId: string) => void;
+  onClose: () => void;
+}) {
+  // Only a friend's avatar routes anywhere, and never your own.
+  const canOpen = Boolean(onOpenProfile && item.authorId && !item.mine);
+  const openProfile = () => {
+    if (!canOpen || !item.authorId) return;
+    // Dismiss the viewer first: leaving a full-screen modal open behind a
+    // pushed page traps the back gesture.
+    onClose();
+    onOpenProfile!(item.authorId);
+  };
   return (
     <View style={styles.byline}>
-      <Avatar
-        name={item.authorName}
-        seed={item.authorPhotoSeed}
-        uri={item.authorPhotoUri}
-        ring={item.mine ? 'you' : 'them'}
-        size={28}
-      />
+      <Pressable
+        onPress={openProfile}
+        disabled={!canOpen}
+        accessibilityRole={canOpen ? 'button' : undefined}
+        accessibilityLabel={canOpen ? `Open ${item.authorName}'s profile` : undefined}>
+        <Avatar
+          name={item.authorName}
+          seed={item.authorPhotoSeed}
+          uri={item.authorPhotoUri}
+          ring={item.mine ? 'you' : 'them'}
+          size={28}
+        />
+      </Pressable>
       <View style={{ flex: 1 }}>
         <Text variant="captionStrong" onPhoto>
           {item.mine ? 'You' : item.authorName}
@@ -294,6 +337,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     backgroundColor: 'rgba(12,12,11,0.55)',
   },
+  reactions: { marginTop: Spacing.sm },
   byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   mediaNote: { marginTop: 3 },
 });

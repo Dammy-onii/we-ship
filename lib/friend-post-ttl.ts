@@ -17,6 +17,15 @@
 
 export const FRIEND_POST_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
+/**
+ * The lifetime in days, for anything shown to a person.
+ *
+ * Derived rather than written out again: the board tells users how long a post
+ * lasts, and a hardcoded "2 days" in the copy would quietly start lying the
+ * moment the constant above changed.
+ */
+export const FRIEND_POST_TTL_DAYS = Math.round(FRIEND_POST_TTL_MS / 86_400_000);
+
 /** The oldest `created_at` that is still visible, as a Postgres-safe string. */
 export function friendPostCutoffISO(now: number = Date.now()): string {
   return new Date(now - FRIEND_POST_TTL_MS).toISOString();

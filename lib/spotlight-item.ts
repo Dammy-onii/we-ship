@@ -1,3 +1,4 @@
+import type { PostReactions } from './types';
 import type { CacheScope } from './media-cache';
 import { dayKeyForInstant, dayKeyIn, relativeDay } from './time';
 import type { FriendPost, Goodie } from './types';
@@ -26,6 +27,10 @@ export type SpotlightItem = {
   authorName: string;
   authorPhotoUri?: string;
   authorPhotoSeed?: string;
+  /** Author's user id, for opening their profile from a card. Friend items only. */
+  authorId?: string;
+  /** Reaction tallies for a friend post, so a card can show counts. */
+  reactions?: PostReactions;
   /** Which store the bytes came from — only Goodies have a Drive original. */
   source: 'goodie' | 'friend';
   /** The full-resolution original is ready in its owner's Google Drive. */
@@ -78,6 +83,8 @@ export function friendPostToItem(post: FriendPost): SpotlightItem {
     mine: post.mine,
     authorName: post.author.displayName,
     authorPhotoUri: post.author.photoUri,
+    authorId: post.author.id,
+    reactions: post.reactions,
     // Friend media is stored whole in Supabase, so there is no Drive original
     // to upgrade to — the stored file is already the best copy available.
     source: 'friend',

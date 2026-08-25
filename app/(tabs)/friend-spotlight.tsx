@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppHeader, HeaderIconButton } from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import { FriendComposer } from '@/components/friend-composer';
 import { MediaViewer } from '@/components/media-viewer';
 import { SpotlightSection } from '@/components/spotlight-grid';
@@ -17,6 +17,7 @@ import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useFriends } from '@/lib/friends';
 import { friendPostToItem, groupByDay, type SpotlightItem } from '@/lib/spotlight-item';
+import { FRIEND_POST_TTL_DAYS } from '@/lib/friend-post-ttl';
 import { deviceTimezone } from '@/lib/time';
 import type { FriendPostKind } from '@/lib/types';
 
@@ -34,10 +35,10 @@ export default function FriendSpotlightScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { enabled, initialLoading, posts, friends, error, refresh } = useFriends();
+  const { enabled, initialLoading, posts, friends, error, refresh, react } = useFriends();
   const [filter, setFilter] = useState<Filter>('all');
-  // `?person=` narrows the board to one friend, so "See their posts" in the
-  // friends list has somewhere real to go.
+  // `?person=` narrows the board to one friend. No screen links here with it
+  // any more — it is kept for deep links into a single person's posts.
   // `?item=` arrives from the Friends widget, which lands on the exact post
   // rather than the top of the board. Remembered once dismissed so closing the
   // viewer does not immediately reopen it on the same param.
@@ -98,15 +99,9 @@ export default function FriendSpotlightScreen() {
               ? `Shared with your ${friends.length} friend${friends.length === 1 ? '' : 's'}`
               : 'Shared with all your friends'
         }
-        action={
-          enabled ? (
-            <HeaderIconButton
-              icon="person-add-outline"
-              label="Find and add friends"
-              onPress={() => router.push('/friends')}
-            />
-          ) : null
-        }
+        // No shortcut to the friends list here. Friends has its own drawer
+        // entry, and every avatar on this board already opens the person it
+        // belongs to — a third route to the same place was clutter.
       />
 
       <View style={styles.body}>
@@ -153,6 +148,18 @@ export default function FriendSpotlightScreen() {
                 );
               })}
             </ScrollView>
+
+            {/*
+              Said once, quietly, where the posts are — not in a dialog people
+              dismiss before reading. Only the friend board expires; Goodies in
+              the Us Spotlight are kept, so this line belongs here alone.
+            */}
+            <View style={styles.ttlNote}>
+              <Ionicons name="time-outline" size={13} color={theme.textFaint} />
+              <Text variant="caption" color="textFaint">
+                Posts here clear themselves after {FRIEND_POST_TTL_DAYS} days.
+              </Text>
+            </View>
 
             {error ? (
               <Pressable
@@ -204,13 +211,20 @@ export default function FriendSpotlightScreen() {
       <FriendComposer visible={composing} onClose={() => setComposing(false)} />
 
       {activeIndex !== null ? (
-        <MediaViewer items={visible} startIndex={activeIndex} onClose={closeViewer} />
+        <MediaViewer
+          items={visible}
+          startIndex={activeIndex}
+          onClose={closeViewer}
+          onOpenProfile={(authorId) => router.push({ pathname: '/friend/[id]', params: { id: authorId } })}
+          onReact={react}
+        />
       ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  ttlNote: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
   body: { paddingHorizontal: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.xl },
   filters: { gap: Spacing.sm, paddingRight: Spacing.lg },
   filter: {

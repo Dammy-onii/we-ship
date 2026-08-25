@@ -81,6 +81,16 @@ export default function AccountScreen() {
     }
   };
 
+  // Which session action is mid-flight, so its own button shows the spinner
+  // rather than all three going dim together.
+  const [pending, setPending] = useState<'leave' | 'signout' | 'delete' | null>(null);
+
+  const signOut = async () => {
+    setPending('signout');
+    try { await auth.signOut(); }
+    catch (error) { showDialog('Could not sign out', userFacingError(error, 'Please try again.')); setPending(null); }
+  };
+
   const leaveSpace = () => showDialog(
     'Leave shared space?',
     'Your partner keeps the space and its shared history. You can pair again afterward.',
@@ -90,10 +100,10 @@ export default function AccountScreen() {
         text: 'Leave space',
         style: 'destructive',
         onPress: async () => {
-          setBusy(true);
+          setPending('leave');
           try { await repository.leavePairSpace(); await sync.refresh(); }
           catch (error) { showDialog('Could not leave space', userFacingError(error, 'Please try again.')); }
-          finally { setBusy(false); }
+          finally { setPending(null); }
         },
       },
     ],
@@ -108,10 +118,9 @@ export default function AccountScreen() {
         text: 'Delete account',
         style: 'destructive',
         onPress: async () => {
-          setBusy(true);
+          setPending('delete');
           try { await repository.deleteOwnAccount(); await auth.signOut(); }
-          catch (error) { showDialog('Could not delete account', userFacingError(error, 'Please try again.')); }
-          finally { setBusy(false); }
+          catch (error) { showDialog('Could not delete account', userFacingError(error, 'Please try again.')); setPending(null); }
         },
       },
     ],
@@ -188,9 +197,29 @@ export default function AccountScreen() {
 
         {auth.configured ? (
           <View style={styles.dangerZone}>
-            {sync.paired ? <Button label="Leave shared space" variant="ghost" disabled={busy} onPress={leaveSpace} /> : null}
-            <Button label="Sign out" variant="ghost" disabled={busy} onPress={auth.signOut} />
-            <Button label="Delete account" variant="ghost" disabled={busy} onPress={deleteAccount} />
+            {sync.paired ? (
+              <Button
+                label="Leave shared space"
+                variant="ghost"
+                loading={pending === 'leave'}
+                disabled={busy || pending !== null}
+                onPress={leaveSpace}
+              />
+            ) : null}
+            <Button
+              label="Sign out"
+              variant="ghost"
+              loading={pending === 'signout'}
+              disabled={busy || pending !== null}
+              onPress={signOut}
+            />
+            <Button
+              label="Delete account"
+              variant="ghost"
+              loading={pending === 'delete'}
+              disabled={busy || pending !== null}
+              onPress={deleteAccount}
+            />
           </View>
         ) : null}
       </ScrollView>

@@ -65,7 +65,7 @@ export default function PairingScreen() {
     try {
       await repository.joinSpace(code);
       await sync.refresh();
-      router.replace('/');
+      goHome();
     } catch (error) {
       showDialog('Could not join', userFacingError(error, 'Check the invite code and try again.'));
     } finally {
@@ -79,7 +79,18 @@ export default function PairingScreen() {
     toast.show('Invite code copied to your clipboard.', { tone: 'success' });
   };
 
-  const skip = () => router.replace('/');
+  /*
+   * `navigate`, not `replace`.
+   *
+   * Pairing is a sibling screen inside the Drawer, not a card on a stack.
+   * `replace` swaps the top of a stack, which here left the Drawer on whichever
+   * screen it was showing before — Profile, for anyone who arrived from there —
+   * so skipping appeared to dump you in settings. `navigate` switches the
+   * Drawer to Home, which is what the button says it does.
+   */
+  const goHome = () => router.navigate('/');
+
+  const skip = goHome;
 
   // Reached from the profile once a Space exists: this used to render nothing
   // at all, so "Shared space" opened a blank screen.

@@ -33,7 +33,7 @@ export default function FriendProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { friends, posts, unfriend } = useFriends();
+  const { friends, posts, unfriend, react } = useFriends();
 
   // The friend list already holds name, handle and avatar, so the page paints
   // immediately and the richer detail fills in behind it.
@@ -183,12 +183,11 @@ export default function FriendProfileScreen() {
         )}
 
         <View style={styles.actions}>
-          <Button
-            full
-            variant="soft"
-            label="See them on the friend board"
-            onPress={() => router.push(`/friend-spotlight?person=${encodeURIComponent(person.id)}`)}
-          />
+          {/*
+            No "see them on the friend board" link. This page already lists
+            everything they have posted, so it sent you to a filtered copy of
+            the list you were looking at.
+          */}
           <Button
             full
             variant="ghost"
@@ -201,7 +200,12 @@ export default function FriendProfileScreen() {
       </ScrollView>
 
       {viewerIndex !== null ? (
-        <MediaViewer items={theirs} startIndex={viewerIndex} onClose={() => setViewerIndex(null)} />
+        <MediaViewer
+          items={theirs}
+          startIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+          onReact={react}
+        />
       ) : null}
     </>
   );

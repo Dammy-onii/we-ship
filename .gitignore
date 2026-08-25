@@ -44,6 +44,9 @@ app-example
 /ios
 /android
 
+*.apk
+*.aab
+
 # generated local Expo-module build output
 /modules/*/android/build/
 /modules/*/ios/build/

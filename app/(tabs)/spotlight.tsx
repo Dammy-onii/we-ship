@@ -8,6 +8,7 @@ import { MediaViewer } from '@/components/media-viewer';
 import { SpotlightSection } from '@/components/spotlight-grid';
 import { DataState } from '@/components/ui/data-state';
 import { EmptySpotlight } from '@/components/empty-spotlight';
+import { UnpairedNotice } from '@/components/unpaired-notice';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
@@ -35,6 +36,8 @@ export default function SpotlightScreen() {
   const router = useRouter();
   const sync = useBackendStatus();
   const { goodies } = useGoodies();
+  // Demo mode always has a partner; only a live account can be unpaired.
+  const paired = sync.mode !== 'live' || sync.paired;
   const me = useMe();
   const partner = usePartner();
   const [filter, setFilter] = useState<Filter>('all');
@@ -127,14 +130,30 @@ export default function SpotlightScreen() {
           })}
         </ScrollView>
 
+        {paired ? null : (
+          <UnpairedNotice
+            title="Nobody to share with yet"
+            detail="Goodies go to one person. Pair with someone and everything you send lands here for both of you."
+          />
+        )}
+
         {sync.loading && !goodies.length ? (
           <DataState compact loading title="Gathering today’s Goodies" />
         ) : !visible.length ? (
           <EmptySpotlight
             title={filter === 'all' ? 'Nothing shared yet' : 'Nothing here yet'}
-            detail={`Send the first ${filter === 'all' ? 'Goodie' : filter} and it will appear here for both of you.`}
+            /*
+             * Unpaired, "for both of you" is a promise to nobody, and the
+             * example card would be signed by a partner who does not exist.
+             * The copy addresses the actual situation instead.
+             */
+            detail={
+              paired
+                ? `Send the first ${filter === 'all' ? 'Goodie' : filter} and it will appear here for both of you.`
+                : 'This fills up once you pair with someone. Until then it is a very tidy gallery.'
+            }
             sampleNote="Made it to the top. Wish you were here for this bit."
-            sampleAuthor={partner.displayName}
+            sampleAuthor={paired ? partner.displayName : 'Someone'}
           />
         ) : (
           <>

@@ -123,7 +123,7 @@ export default function NotificationSettingsScreen() {
         </View>
       ) : null}
       {enabled ? <Button full variant="soft" label="Disable on this device" disabled={busy} onPress={disable} /> : null}
-      <Text variant="caption" color="textFaint">Weship asks the phone only when you press Enable. Each physical device stores its own revocable Expo push token.</Text>
+      <Text variant="caption" color="textFaint">Weship only asks your phone when you tap Enable. You can turn this off again at any time, on each device separately.</Text>
     </ScrollView>
   );
 }
