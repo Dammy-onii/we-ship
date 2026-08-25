@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Font, Radius, Spacing } from '@/constants/theme';
 import { showDialog } from '@/components/ui/dialog';
-import { useNativePickerAction } from '@/hooks/use-native-picker';
+import { useMediaSource } from '@/hooks/use-media-source';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
 import { useFriends } from '@/lib/friends';
@@ -62,7 +62,11 @@ export function FriendComposer({
   const [text, setText] = useState('');
   const [mediaAsset, setMediaAsset] = useState<ImagePicker.ImagePickerAsset>();
   const [sending, setSending] = useState(false);
-  const runPicker = useNativePickerAction();
+  const chooseMedia = useMediaSource({
+    kind: kind === 'video' ? 'video' : 'photo',
+    onPicked: setMediaAsset,
+    libraryPermissionMessage: 'Allow photo access to choose something to post.',
+  });
 
   const reset = () => {
     setKind(initialKind);
@@ -81,28 +85,7 @@ export function FriendComposer({
     setMediaAsset(undefined);
   };
 
-  const pickMedia = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showDialog('Photos permission needed', 'Allow photo access to choose something to post.');
-      return;
-    }
-    const result = await runPicker(() =>
-      ImagePicker.launchImageLibraryAsync({
-        mediaTypes: kind === 'video' ? ['videos'] : ['images'],
-        allowsEditing: false,
-        quality: 0.9,
-        // Every post is one piece of media. Explicitly disabling multi-select
-        // also keeps OEM Android pickers from retaining their last batch mode.
-        allowsMultipleSelection: false,
-        selectionLimit: 1,
-      }),
-    );
-    if (result.canceled) return;
-    // Some vendor pickers ignore selectionLimit; consuming only the first
-    // result keeps the one-post/one-file contract true regardless.
-    setMediaAsset(result.assets[0]);
-  };
+  const pickMedia = () => chooseMedia();
 
   const canSend =
     (kind === 'note' && Boolean(text.trim())) ||
@@ -209,6 +192,12 @@ export function FriendComposer({
               <>
                 <Pressable
                   onPress={pickMedia}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    kind === 'photo'
+                      ? mediaAsset ? 'Replace photo' : 'Add a photo'
+                      : mediaAsset ? 'Replace video' : 'Add a video'
+                  }
                   style={[styles.picker, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
                   {mediaAsset && kind === 'photo' ? (
                     <Image
@@ -227,8 +216,8 @@ export function FriendComposer({
                         {mediaAsset
                           ? 'Video selected'
                           : kind === 'photo'
-                            ? 'Choose one photo'
-                            : 'Choose a video'}
+                            ? 'Take or choose a photo'
+                            : 'Record or choose a video'}
                       </Text>
                     </>
                   )}

@@ -26,7 +26,7 @@ import { VoicePlayer } from '@/components/voice-player';
 import { showDialog } from '@/components/ui/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { userFacingError } from '@/lib/user-facing-error';
-import { useNativePickerAction } from '@/hooks/use-native-picker';
+import { useMediaSource } from '@/hooks/use-media-source';
 import { useBackendStatus, useGoodies, useUser, YOU_ID } from '@/lib/store';
 import { useGoogleConnection } from '@/lib/use-google-connection';
 import type { FriendPostKind, Goodie, GoodieKind } from '@/lib/types';
@@ -174,35 +174,19 @@ function GoodieComposer({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [reminderAt, setReminderAt] = useState(() => new Date(Date.now() + 60 * 60 * 1000));
   const [showReminderPicker, setShowReminderPicker] = useState(false);
-  const runPicker = useNativePickerAction();
+  const chooseMedia = useMediaSource({
+    kind: kind === 'video' ? 'video' : 'photo',
+    onPicked: setMediaAsset,
+    libraryPermissionMessage: 'Allow photo access to choose something for your partner.',
+    legacyLibrary: true,
+  });
 
   const selectKind = (next: GoodieKind) => {
     setKind(next);
     setMediaAsset(undefined);
   };
 
-  const pickMedia = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showDialog('Photos permission needed', 'Allow photo access to choose something for your partner.');
-      return;
-    }
-    const result = await runPicker(() =>
-      ImagePicker.launchImageLibraryAsync({
-        mediaTypes: kind === 'video' ? ['videos'] : ['images'],
-        allowsEditing: false,
-        // One at a time: only the first asset is ever read, so letting the
-        // picker take ten made the other nine vanish without explanation.
-        allowsMultipleSelection: false,
-        selectionLimit: 1,
-        quality: 0.9,
-        // Copy the pick into app cache so we get a stable file:// URI rather
-        // than a content:// one that can expire or resist direct reads.
-        legacy: true,
-      }),
-    );
-    if (!result.canceled) setMediaAsset(result.assets[0]);
-  };
+  const pickMedia = () => chooseMedia();
 
   const canSend =
     ((kind === 'photo' || kind === 'video') &&
@@ -288,6 +272,18 @@ function GoodieComposer({
           ) : null}
           <Pressable
             onPress={mediaNeedsDrive ? () => router.push('/connections') : pickMedia}
+            accessibilityRole="button"
+            accessibilityLabel={
+              mediaNeedsDrive
+                ? 'Connect Google Drive before adding media'
+                : kind === 'photo'
+                  ? mediaAsset
+                    ? 'Replace photo'
+                    : 'Add a photo'
+                  : mediaAsset
+                    ? 'Replace video'
+                    : 'Add a video'
+            }
             style={[styles.mediaPicker, { backgroundColor: theme.surfaceAlt, borderColor: theme.line }]}>
             {mediaAsset?.uri && kind === 'photo' ? (
               <Image source={{ uri: mediaAsset.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -295,9 +291,17 @@ function GoodieComposer({
               <>
                 <Ionicons name={kind === 'video' ? 'videocam-outline' : 'images-outline'} size={30} color={theme.primary} />
                 <Text variant="bodyStrong">
-                  {mediaNeedsDrive ? 'Connect Drive before choosing media' : mediaAsset ? 'Video selected' : `Choose a ${kind}`}
+                  {mediaNeedsDrive
+                    ? 'Connect Drive before choosing media'
+                    : mediaAsset
+                      ? kind === 'photo' ? 'Photo ready' : 'Video selected'
+                      : kind === 'photo' ? 'Take or choose a photo' : 'Record or choose a video'}
                 </Text>
-                <Text variant="caption" color="textFaint">Original → your Drive · small preview → Weship</Text>
+                <Text variant="caption" color="textFaint">
+                  {(kind === 'photo' || kind === 'video') && !mediaNeedsDrive && !mediaAsset
+                    ? 'Use your camera or upload from your library'
+                    : 'Original → your Drive · small preview → Weship'}
+                </Text>
               </>
             )}
           </Pressable>

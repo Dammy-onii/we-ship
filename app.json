@@ -81,7 +81,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Weship to choose photos and videos for shared Goodies and Memories.",
-          "cameraPermission": false
+          "cameraPermission": "Allow Weship to use the camera when you take a photo or video to share.",
+          "microphonePermission": "Allow Weship to record sound when you take a video to share."
         }
       ],
       "expo-asset",

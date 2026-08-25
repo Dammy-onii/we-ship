@@ -22,6 +22,9 @@ const MAX_COLUMN = 260;
 const MAX_COLUMNS = 5;
 /** No card grows past this, however tall its media wants to be. */
 const MAX_CARD_HEIGHT = 320;
+/** Notes may need more room than media so wrapped copy never hides its byline. */
+const MAX_NOTE_LINES = 7;
+const NOTE_LINE_HEIGHT = 23;
 
 export function SpotlightSection({
   title,
@@ -38,11 +41,11 @@ export function SpotlightSection({
   onLongPress?: (item: SpotlightItem) => void;
 }) {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const { columnCount, columnWidth } = useMemo(() => layoutFor(width), [width]);
   const columns = useMemo(
-    () => toColumns(items, columnCount, columnWidth),
-    [items, columnCount, columnWidth],
+    () => toColumns(items, columnCount, columnWidth, fontScale),
+    [items, columnCount, columnWidth, fontScale],
   );
 
   return (
@@ -69,7 +72,7 @@ export function SpotlightSection({
                 <SpotlightCard
                   item={item}
                   width={columnWidth}
-                  height={cardHeight(item, columnWidth)}
+                  height={cardHeight(item, columnWidth, fontScale)}
                   onPress={() => onOpen(item)}
                   onLongPress={onLongPress ? () => onLongPress(item) : undefined}
                 />
@@ -109,7 +112,12 @@ function layoutFor(width: number) {
  * gaps. Placing every next card in the currently shortest column keeps the
  * columns even without measuring rendered views.
  */
-function toColumns(items: SpotlightItem[], columnCount: number, width: number) {
+function toColumns(
+  items: SpotlightItem[],
+  columnCount: number,
+  width: number,
+  fontScale: number,
+) {
   const columns: { items: SpotlightItem[]; height: number }[] = Array.from(
     { length: columnCount },
     () => ({ items: [], height: 0 }),
@@ -117,13 +125,13 @@ function toColumns(items: SpotlightItem[], columnCount: number, width: number) {
   for (const item of items) {
     const shortest = columns.reduce((min, c) => (c.height < min.height ? c : min), columns[0]);
     shortest.items.push(item);
-    shortest.height += cardHeight(item, width);
+    shortest.height += cardHeight(item, width, fontScale);
   }
   return columns;
 }
 
 /** Intrinsic media ratio, clamped so a panorama or very tall image stays usable. */
-function cardHeight(item: SpotlightItem, width: number) {
+function cardHeight(item: SpotlightItem, width: number, fontScale: number) {
   switch (item.kind) {
     case 'photo':
     case 'video': {
@@ -138,8 +146,21 @@ function cardHeight(item: SpotlightItem, width: number) {
     case 'reminder':
       return 148;
     default: {
-      const length = item.text?.length ?? 0;
-      return Math.min(MAX_CARD_HEIGHT, 116 + Math.round(length / 3.1));
+      // Character count alone cannot predict wrapping: the same sentence takes
+      // far more lines in a narrow phone column than on a tablet. Estimate from
+      // the actual card width, reserve a fixed footer, and include the system's
+      // text scale so the byline and reactions always remain inside the card.
+      const usableWidth = Math.max(1, width - Spacing.base * 2);
+      const averageGlyphWidth = 7.5 * fontScale;
+      const charactersPerLine = Math.max(8, Math.floor(usableWidth / averageGlyphWidth));
+      const wrappedLines = (item.text ?? '').split('\n').reduce(
+        (total, paragraph) =>
+          total + Math.max(1, Math.ceil(paragraph.length / charactersPerLine)),
+        0,
+      );
+      const lines = Math.max(1, Math.min(MAX_NOTE_LINES, wrappedLines));
+      const chromeHeight = 70 * Math.max(1, fontScale);
+      return Math.min(420, chromeHeight + lines * NOTE_LINE_HEIGHT * fontScale);
     }
   }
 }
@@ -357,7 +378,10 @@ function NoteCard({ item, height, onPress, onLongPress }: CardProps) {
         justifyContent: 'space-between',
       }}>
       <View style={[styles.quoteBar, { backgroundColor: item.mine ? theme.primary : theme.partner }]} />
-      <Text variant="serif" style={{ fontSize: 15, lineHeight: 23 }} numberOfLines={7}>
+      <Text
+        variant="serif"
+        style={{ fontSize: 15, lineHeight: NOTE_LINE_HEIGHT }}
+        numberOfLines={MAX_NOTE_LINES}>
         {item.text ?? '—'}
       </Text>
       <View style={styles.cardFootRow}>
